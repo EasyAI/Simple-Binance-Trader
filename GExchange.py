@@ -1,6 +1,9 @@
 #! /usr/bin/env python3
 
 ## Binance/Bittrex global api (ongoing work)
+## Thanks to:
+## Binance api: https://github.com/binance-exchange/binance-official-api-docs
+## Bittrex: https://github.com/thebotguys/golang-bittrex-api
 
 import hmac
 import hashlib
