@@ -19,7 +19,7 @@ SETTINGS:
 
 Setup:
 
-1.Make sure you put CryptoAlgs, BitFunctions and Trading_Bot into the same folder as start.py
+1.Make sure you put CryptoAlgs, GExchange and Trading_Bot into the same folder as start.py
 2.Make sure you add/change the settings to fit your needs.(If you want to do real trades and not simulations you need your keys)
 3.Make the main script (start.py) executable (chmod u+x)
 4.Run the script in a terminal (start.py).
