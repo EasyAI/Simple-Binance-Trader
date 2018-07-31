@@ -6,8 +6,8 @@ Simple bollinger band trading bot for binance.
 This Repository Contains:
 
 - start.py : This is used to start the bot.
-- GExchange.py : This is a typ of global exchange api.
-- CryptoAlgs.py : This contails some of the trades I use.
+- gexchange : This is a type of global exchange api.
+- algs.py : This contails some of the trades I use.
 - Traiding_Bot.py : This is the main script for the bot.
 
 
@@ -22,15 +22,17 @@ SETTINGS:
 
 Setup:
 
-1.Make sure you put CryptoAlgs, GExchange and Trading_Bot into the same folder as start.py
+1.Make sure you put algs, gexchange and Trading_Bot into the same folder as start.py
 
-2.Make sure you add/change the settings to fit your needs.(If you want to do real trades and not simulations you need your keys)
+2.Make the main script (start.py) executable (chmod u+x)
 
-3.Make the main script (start.py) executable (chmod u+x)
+3. run start.py and it will create a settings file, populate the file.
 
-4.Run the script in a terminal (start.py).
+4.Make sure you add/change the settings to fit your needs.(If you want to do real trades and not simulations you need your keys)
 
-5.Use either the terminal or log files to keep track of activity.
+5.Run the script in a terminal (start.py) once you're happy with the settings.
+
+6.Use the terminal keep track of activity.
 
 
 CONTACT: If you would like to contact me please use jlennie1996@gmail.com
