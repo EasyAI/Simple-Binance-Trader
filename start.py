@@ -5,9 +5,13 @@ import os
 import json
 import time
 
-try: import CryptoAlgs
+try: import gexchange
 except ModuleNotFoundError:
-	sys.exit("Make sure you have \"CryptoAgls\" in site-packages or the same directory.")
+	sys.exit("Make sure you have \"gexchange\" in site-packages or the same directory.")
+
+try: import algs
+except ModuleNotFoundError:
+	sys.exit("Make sure you have \"algs\" in site-packages or the same directory.")
 
 try: import Trading_Bot as TB
 except ModuleNotFoundError:
@@ -27,6 +31,7 @@ def make_settings_file():
 ## This checks if the settings file exists.
 if not os.path.isfile(SETTINGS_FILE_PATH):
 	make_settings_file()
+	sys.exit("Created settings file please populate the file in a json format.\nMake sure your data entered is compliant with the exchange i.e. (min btc pre order)\nRemeber if you have 3 markets your overall btc will be divided by 3 for all 3 markets.")
 
 ## This section is for reading data from the settings file and storing it.
 settings_file = open(SETTINGS_FILE_PATH, 'r')

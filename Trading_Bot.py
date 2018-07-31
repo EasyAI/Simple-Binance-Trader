@@ -9,9 +9,9 @@ import os
 import sys
 import time
 import json
-import CryptoAlgs as CA
+import algs as CA
 from decimal import Decimal
-from GExchange import g_exchange
+from gexchange import g_exchange
 
 class trader(object):
 
@@ -26,9 +26,11 @@ class trader(object):
 
 		filters = self.exchange.get_marketInfo(market)['filters']
 		minQuantBase = (Decimal(filters[1]["minQty"])).as_tuple()
+		tickSizeBase = (Decimal(filters[0]["tickSize"])).as_tuple()
 
 		self.marketRules = {
-			"minQty":abs(int(str(len(minQuantBase.digits)+minQuantBase.exponent)))+1
+			"minQty":abs(int(str(len(minQuantBase.digits)+minQuantBase.exponent)))+2,
+			"tickSize":abs(int(str(len(tickSizeBase.digits)+tickSizeBase.exponent)))+1
 		}
 
 		## ----------------------------| MAIN VARIABLES |---------------------------->
@@ -117,7 +119,6 @@ class trader(object):
 
 			if openOrders == "Empty":
 				if traderInfo["cTrade"] == "Buy":
-					print(openOrders)
 					self.botTraderInfo["cTrade"] = "Sell"
 
 				elif traderInfo["cTrade"] == "Sell":
@@ -171,9 +172,8 @@ class trader(object):
 
 
 		if oType == 'Normal':
-			price = float("{0:.{1}f}".format(traderInfo["lastPrice"], 6))
-			quantity = float("{0:.{1}f}".format(traderInfo["allowedCurrency"]/price, self.marketRules["minQty"]))
-			print(quantity)
+			price = "{0:.{1}f}".format(traderInfo["lastPrice"], self.marketRules["tickSize"])
+			quantity = "{0:.{1}f}".format(traderInfo["allowedCurrency"]/float(price), self.marketRules["minQty"])
 
 			orderOutcome = exchange.post_buy(market=market, quantity=quantity, price=price)
 			self.botTraderInfo["hAmount"] = quantity
@@ -194,19 +194,19 @@ class trader(object):
 		orderOutcome = False
 
 		if oType == 'Normal':
-			price = float("{0:.{1}f}".format(traderInfo["lastPrice"], 6))
-			quantity = float("{0:.{1}f}".format(traderInfo["hAmount"], self.marketRules["minQty"]))
+			price = "{0:.{1}f}".format(traderInfo["lastPrice"], self.marketRules["tickSize"])
+			quantity = "{0:.{1}f}".format(traderInfo["hAmount"], self.marketRules["minQty"])
 			self.botTraderInfo["sellPrice"] = price
 
 			orderOutcome = exchange.post_sell(market=market, quantity=quantity, price=price)
 			orderOutcome = True
 
 		elif oType == 'Loss':
-			price = float("{0:.{1}f}".format(traderInfo["lastPrice"], 6))
-			quantity = float("{0:.{1}f}".format(traderInfo["hAmount"], self.marketRules["minQty"]))
+			price = "{0:.{1}f}".format(traderInfo["lastPrice"], self.marketRules["tickSize"])
+			quantity = "{0:.{1}f}".format(traderInfo["hAmount"], self.marketRules["minQty"])
+			self.botTraderInfo["sellPrice"] = price
 
 			orderOutcome = exchange.post_sell(market=market, quantity=quantity, price=price)
-			self.botTraderInfo["sellPrice"] = price
 			orderOutcome = True
 
 		return(orderOutcome)
