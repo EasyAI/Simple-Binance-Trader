@@ -1,38 +1,26 @@
 # Simple-Binance-Trader
 
-Simple bollinger band trading bot for binance.
+This is a binace trader that currently uses a simple MACD stratergy. This also allows you to edit and ad your own stratergy if you follow the google doc linked at the end.
 
 
 This Repository Contains:
 
-- start.py : This is used to start the bot.
-- gexchange : This is a type of global exchange api.
-- algs.py : This contails some of the trades I use.
+- run.py : This is used to start/setup the bot.
+- calls.py : This is used to manage binace api calls.
+- TradeIndicators.py : This contains indicators that can be used by the bot.
 - Traiding_Bot.py : This is the main script for the bot.
 
 
-SETTINGS:
+The setting that will be in the generated settings file are as follows:
 
-- "Currency_Allowed" = THe amount of btc allowed to share between every market.
-- "Markets" = The market(s) you want to trade.
+- "Currency_Allowed" = The amount of btc allowed to share between every market.
+- "Market" = The market you want to trade.
 - "Time_Interval" = The Time interval for candles.
-- "Loss Threshold" = the amount in % before the bot sell for loss.
 - "Keys" = both of the keys for the API.
 
 
-Setup:
-
-1.Make sure you put algs, gexchange and Trading_Bot into the same folder as start.py
-
-2.Make the main script (start.py) executable (chmod u+x)
-
-3. run start.py and it will create a settings file, populate the file.
-
-4.Make sure you add/change the settings to fit your needs.(If you want to do real trades and not simulations you need your keys)
-
-5.Run the script in a terminal (start.py) once you're happy with the settings.
-
-6.Use the terminal keep track of activity.
+To set up the bot and for any further detail please refer to the google doc link below:
+https://docs.google.com/document/d/e/2PACX-1vRkqOzsPzG6M7r7RVwMmaTzs9gTTpPaFHVw2eXYschZEWIIuiH8NGPUPlQ55rNHUvZHT2wuhmGI7Hw1/pub
 
 
 CONTACT: If you would like to contact me please use jlennie1996@gmail.com
