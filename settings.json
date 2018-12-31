@@ -1,7 +1,0 @@
-{"Currency_Allowed" : 0.002,
-"Markets" : ["BTC-ICX"],
-"Time_Interval" : "5m",
-"Loss_Threshold":5,
-"Keys": {"Public" : "",
-	"Secret" : ""}
-}
