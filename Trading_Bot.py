@@ -21,7 +21,7 @@ class trader(object):
 
 	def __init__(self, publicKey, privateKey, market, maxACurrency, timeInterval):
 
-		## This section is for verifying the time intervals
+		## This section is for verifying the time intervals.
 		if timeInterval not in TIME_INTERVALS:
 			raise ValueError("{0} in-valid time interval.".format(timeInterval))
 
