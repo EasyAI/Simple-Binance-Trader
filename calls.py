@@ -333,16 +333,12 @@ class Calls(object):
 		This is used to get the candles for a specific market and the interval.
 		"""
 		sortedCandles = None
-		recivedData = False
 
-		while not(recivedData):
-			try:
-				sortedCandles = TI.sort_candle(self.get_candles(market, interval, limit=limit), "binance")
-			except Exception as e:
-				time.sleep(10)
-				print(e)
-			if sortedCandles != None:
-				recivedData = True
+		candles = self.get_candles(market, interval, limit=limit)
+		try:
+			sortedCandles = TI.sort_candle(candles, "binance")
+		except Exception as e:
+			print_out(e, "getting candles")
 
 		return(sortedCandles)
 
@@ -444,7 +440,10 @@ class Calls(object):
 		"""
 		This is used to request public data from the exchange.
 		"""
+		data = None
 		recivedData = False
+		retries = 0
+		maxRetries = 5
 
 		while not(recivedData):
 
@@ -456,8 +455,12 @@ class Calls(object):
 				print_out(query, error)
 				sys.exit(e)
 
-			if (exchange_error_check(data, "")):
+			if(exchange_error_check(data, "")):
 				recivedData = True
+			elif retries >= maxRetries:
+				sys.exit("error getting data (reached max retries)")
+			else:
+				retries += 1
 
 		return(data)
 
@@ -469,7 +472,10 @@ class Calls(object):
 		"""
 		data = None
 		recivedData = False
+		retries = 0
+		maxRetries = 5
 		param_encode = urlencode(sorted(params.items()))
+
 		if self.api_key == '' or self.api_secret == '':
 			raise ValueError("Make sure you use your API key/secret")
 
@@ -488,6 +494,10 @@ class Calls(object):
 
 			if(exchange_error_check(data, query)):
 				recivedData = True
+			elif retries >= maxRetries:
+				sys.exit("error getting data (reached max retries)")
+			else:
+				retries += 1
 					
 		return(data)
 
@@ -501,11 +511,11 @@ def exchange_error_check(data, query):
 
 	if errorMsg == None: 
 		return(True)
-	elif errorMsg == "Timestamp for this request is outside of the recvWindow.":
+	elif errorMsg == "Timestamp for this request is outside of the recvWindow, getting new timestamp.":
 		time.sleep(2.5)
 	elif "Connection aborted." in errorMsg:
 		print_out(errorMsg, query)
-		print("Connection aborted llll")
+		print("Connection was aborted, retrying...")
 		ping()
 	elif data == None:
 		error = "Was unable to get the data or connect to binance, retring..."
