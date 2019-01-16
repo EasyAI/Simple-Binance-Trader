@@ -5,22 +5,14 @@ import os
 import json
 import time
 
-try: 
-	import calls
-except ModuleNotFoundError:
-	sys.exit("Make sure you have \"Calls\" in site-packages or the same directory.")
+import calls
+import TradeIndicators
+import Trading_Bot
 
-try: import TradeIndicators
-except ModuleNotFoundError:
-	sys.exit("Make sure you have \"TradeIndicators\" in site-packages or the same directory.")
-
-try: import Trading_Bot
-except ModuleNotFoundError:
-	sys.exit("Make sure you have \"Trading_Bot\" in the same directory.")
-
-ver = 6.5
 
 ## This creates file paths.
+ver = 6.5
+traderBot = []
 extra_directory = ("{0}/extra/".format(os.getcwd()))
 settings_file_path = ("{0}settings.json".format(extra_directory))
 
@@ -103,7 +95,7 @@ def print_data(data):
 		if data["status"] == "RUNNING":
 			print("[STATUS] {0} | {1} | lastUpdate: {2}".format(marketTrade, marketOrder, data["time"]))
 
-		print("[PRICES] buyPrice: {1:.{0}f} | sellPrice: {2:.{0}f}".format(precis, data["CTI"]["buyPrice"], data["CTI"]["sellPrice"]))
+		print("[PRICES] buyPrice: {1:.{0}f} | sellPrice: {2:.{0}f} | lastPrice: {3:.{0}f}".format(precis, data["CTI"]["buyPrice"], data["CTI"]["sellPrice"], data["CMI"]["lastPrice"]))
 		print("[CONDITIONS] fast: {0:.8f} | slow: {1:.8f}".format(MACD[0]["fast"], MACD[0]["slow"]))
 
 
