@@ -8,7 +8,6 @@ DESCRIPTION		: Trading bot object for Binance.
 import os
 import sys
 import time
-import conditions as con
 import TradeIndicators as TI
 from decimal import Decimal
 from calls import Calls
@@ -31,7 +30,6 @@ class trader(object):
 		self.lastUpdateTime = {"U":0, "B":0, "S":0, "O":0, "rRSI":0, "candle":0, "Test":0}		# Timing used for bot, U - Updates, B - orderbook updates, O is for placing orders.
 		self.fCandles 		= []											# This is used to hold formatted candles.
 		## <------------------------------------------------------------------------------------------> ##
-
 
 		## This is used to lead the filters for a specific market.
 		filters = self.call.get_market_rules(market)
@@ -107,13 +105,12 @@ class trader(object):
 		"""
 		This section is incharge of updating and getting data for indicators.
 		"""
+		intervalUpdate = False
 		localTime 	= time.localtime()
 		unixTime	= time.time()
 		market 		= self.traderInfo["market"]
 		call 		= self.call
 		fcandles 	= self.fCandles
-		update 		= False
-		intervalUpdate = False
 
 
 		"""##############					 ##############
