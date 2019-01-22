@@ -40,7 +40,8 @@ ORDER CODES:
 212 - The currenct buy order needs to be locked.
 213 - THe currenct sell order needs to be loocked.
 """
-
+LOGS_FILE_PATH 	= os.getcwd()+"/extra/"
+logFileName 	= ("{0}_errors_log.txt".format(LOGS_FILE_PATH))
 
 class Calls(object):
 	"""
@@ -53,6 +54,11 @@ class Calls(object):
 		self.api_secret = str(api_secret) if api_secret is not None else ''
 
 
+		logFile = open(logFileName, 'w')
+		logFile.write(" ")
+		logFile.close()
+
+
 
 	def trade_manager(self, tInfo, side, price, orderType="LIMIT"):
 		"""
@@ -63,20 +69,16 @@ class Calls(object):
 		message = None
 		code 	= None
 
-
 		if tInfo["CTI"]["tradeTypes"]["B"] != None:
 			## This deals with the buy side for checking balances.
-
 			if tInfo["currencyLeft"] > tInfo["MR"]["MINIMUM_NOTATION"]:
 				# This checks if there is enought currency left to place a buy order.
-
 				balance = self.get_balance("BTC")
 				if balance['free'] <= tInfo["currencyLeft"]:
 					# This checks if there is enough btc to place a buy order.
 					code, message = 101, "Not enough BTC to placed initial buy."
 			else:
 				code, message = 102, "Not enough currency left to place new buy."
-
 
 		if tInfo["CTI"]["tradeTypes"]["S"] != None:
 			lastPrice 	= self.get_market_summary("last", tInfo["market"])
@@ -97,7 +99,6 @@ class Calls(object):
 				else:
 					code, message = 0, "Unknown error placing order."
 
-
 		return({"code":code, "msg":message})
 
 
@@ -111,7 +112,6 @@ class Calls(object):
 		message = None
 		code 	= None
 		oOrder 	= self.check_open_orders(market)
-
 
 		if oOrder != "Empty":
 			## This first part is for checking an active order.
@@ -136,8 +136,8 @@ class Calls(object):
 							balance 	= self.get_balance(token)
 							if (balance['locked']+balance['free'])*lastPrice <= tInfo["MR"]["MINIMUM_NOTATION"]:
 								code, message = 213, "Sell order lock."
-			except:
-				print_out(order)
+			except Exception as e:
+				print_out(e, oOrder)
 
 		else:
 			## This second part is for checking the current traded token and BTC amounts before placing.
@@ -213,10 +213,10 @@ class Calls(object):
 			orderOutcome = True if data != None else False
 
 		except ValueError as error:
-			print_out(error, end)
+			print_out(data, error)
 			return(False)
 		except Exception as error:
-			print_out(error, end)
+			print_out(data, error)
 			return(False)
 			
 		return(orderOutcome)
@@ -242,7 +242,7 @@ class Calls(object):
 			"""
 			orders = ""
 			retries = 0
-			maxRetries = 3
+			maxRetries = 5
 			token = market[market.index('-')+1:]
 			orderCancled = False
 
@@ -251,33 +251,23 @@ class Calls(object):
 				openOrders = self.check_open_orders(market)
 
 				if openOrders != 'Empty':
-					try:
-						## This checks if there is an open order.
-						for order in openOrders['data']:
+					## This checks if there is an open order.
+					for order in openOrders['data']:
 
-							## This checks the side of the order.
-							if order['side'] == side or side == 'ALL':
+						## This checks the side of the order.
+						if order['side'] == side or side == 'ALL':
 
-								## This sets up the parameters and then sends a DELETE request.
-								params = {'symbol':fmt_market(market), 'orderId':order['orderId']}
-								self.api_signed_request('DELETE', '/v3/order', params)
+							## This sets up the parameters and then sends a DELETE request.
+							params = {'symbol':fmt_market(market), 'orderId':order['orderId']}
+							self.api_signed_request('DELETE', '/v3/order', params)
 
-								if self.get_balance(token)['locked'] == 0:
-									print("Cleared orders")
-									if self.check_open_orders(market) == 'Empty':
-										orderCancled = True
+							if self.get_balance(token)['locked'] == 0:
+								if self.check_open_orders(market) == 'Empty':
+									orderCancled = True
 
-					except ValueError as error:
-						print_out(error)
-						return(False)
-
-					except Exception as error:
-						print_out(error)
-						sys.exit(error)
-
-					retries += 1
 					if retries >= maxRetries:
-						raise ValueError("cancel error")
+						raise ValueError(openOrders,"cancel error")
+					retries += 1
 
 				else: orderCancled = True
 
@@ -293,7 +283,6 @@ class Calls(object):
 		ordersFound = 0
 		boughtPrice = 0
 		token 		= market[market.index('-')+1:]
-
 		orders = (self.api_signed_request('GET', '/v3/allOrders', {'symbol':fmt_market(market)}))
 		orders.reverse()
 
@@ -333,12 +322,17 @@ class Calls(object):
 		This is used to get the candles for a specific market and the interval.
 		"""
 		sortedCandles = None
+		candles = None
+		recivedData = False
+		retries = 0
+		maxRetries = 5
 
-		candles = self.get_candles(market, interval, limit=limit)
 		try:
+			candles = self.get_candles(market, interval, limit=limit)
+
 			sortedCandles = TI.sort_candle(candles, "binance")
 		except Exception as e:
-			print_out(e, "getting candles")
+			print_out(e, candles)
 
 		return(sortedCandles)
 
@@ -359,6 +353,7 @@ class Calls(object):
 		This is used to get data about the market sumary
 		"""
 		param = {'symbol':fmt_market(market)}
+		data = None
 
 		try:
 			if typeData == "orders":
@@ -367,12 +362,10 @@ class Calls(object):
 			elif typeData == "last":
 				data = self.api_request('GET', '/v3/ticker/price', param)
 				fData = float(data["price"])
+		except Exception as e:
+			print_out(e, data)
 
-			return(fData)
-
-		except Exception as error:
-			print_out(error, query="")
-			sys.exit()
+		return(fData)
 
 
 
@@ -409,20 +402,18 @@ class Calls(object):
 		"""
 		get_data = self.api_signed_request('GET', '/v3/account', {})
 		data = None
-
 		try:
 			for element in get_data['balances']:
 				if token == element['asset']:
 					data = {'asset':element['asset'], 'free':float(element['free']), 'locked':float(element['locked'])}
 					break
-			
+				
 			if data == None: raise ValueError("Invalid Market")
+		except Exception as e:
+			message = "{0},{1}".format(e, get_data)
+			sys.exit()
 
-			return(data)
-
-		except Exception as error:
-			print_out(error, query=get_data)
-			return(False)
+		return(data)
 
 
 
@@ -444,16 +435,16 @@ class Calls(object):
 		recivedData = False
 		retries = 0
 		maxRetries = 5
+		query = path + str(params)
 
 		while not(recivedData):
-
 			api_resp = requests.request(method, BASE_API + path, params=params)
 
 			try:
 				data = api_resp.json()
 			except Exception as e:
 				print_out(query, error)
-				sys.exit(e)
+				data = {"error":{"message":error}}
 
 			if(exchange_error_check(data, "")):
 				recivedData = True
@@ -489,8 +480,7 @@ class Calls(object):
 			try:
 				data = api_resp.json()
 			except Exception as error:
-				print_out(query, error)
-				data = {"errorMsg":error}
+				data = {"error":{"message":error}}
 
 			if(exchange_error_check(data, query)):
 				recivedData = True
@@ -507,25 +497,19 @@ def exchange_error_check(data, query):
 	"""
 	This section is used to handle any error messages that may be recived by the exchange.
 	"""
-	errorMsg = data['msg'] if 'msg' in data else None
+	if "error" in data or data == None:
+		error = data["error"]["message"]
+		if error == "Timestamp for this request is outside of the recvWindow, getting new timestamp.":
+			time.sleep(2.5)
+		elif error in ["Connection aborted", "HTTPSConnectionPool", "NewConnectionError"]:
+			print_out(error, query)
+			ping()
+		else:
+			print_out(error, query)
+			raise ValueError(error)
+		return(False)
 
-	if errorMsg == None: 
-		return(True)
-	elif errorMsg == "Timestamp for this request is outside of the recvWindow, getting new timestamp.":
-		time.sleep(2.5)
-	elif "Connection aborted." in errorMsg:
-		print_out(errorMsg, query)
-		print("Connection was aborted, retrying...")
-		ping()
-	elif data == None:
-		error = "Was unable to get the data or connect to binance, retring..."
-		print(error)
-		ping()
-	else:
-		print(data, errorMsg)
-		raise ValueError(errorMsg)
-
-	return(False)
+	return(True)
 
 
 
@@ -539,6 +523,7 @@ def ping():
 	hostname = "www.google.com"
 
 	while retries < maxRetries:
+		time.sleep(10)
 		response = os.system("ping -c 1 " + hostname)
 
 		if response == 0:
@@ -548,7 +533,6 @@ def ping():
 
 		retries += 1
 		print("connection error, retries {0} out of {1}".format(retries, maxRetries))
-		time.sleep(10)
 	
 	return(False)
 
@@ -580,9 +564,7 @@ def fmt_candles(candles):
 
 def print_out(error, query=""):
 	## Just to print out trade info to log files.
-	LOGS_FILE_PATH 	= os.getcwd()+"/extra/"
 	currentTime 	= time.localtime()
-	logFileName 	= ("{0}_errors_log.txt".format(LOGS_FILE_PATH))
 	fTime 			= "{0}:{1}:{2}".format(currentTime[3], currentTime[4], currentTime[5])
 
 	errorStr = "{0} | ERROR: {1}, queryif: {2}".format(fTime, error, query)
