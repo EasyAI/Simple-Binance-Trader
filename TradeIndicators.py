@@ -15,6 +15,7 @@ import statistics as stat
 - BB
 - RSI
 - StochRSI
+- Stochastic Oscillator
 - SMA
 - EMA
 - SS
@@ -151,6 +152,52 @@ def get_stochRSI(prices, rsiType=14, ind_span=2):
 		sto_K.append(float("{0:.2f}".format((av_CL[i]/av_HL[i])*100)))
 
 	return(sto_K)
+
+
+
+## This function is used to calculate and return the Stochastic Oscillator indicator.
+def get_S_O(candles, K_period=14, K_smooth=3, D_smooth=3, ind_span=2):
+	"""
+	This function uses 5 parameters to calculate the  Stochastic Oscillator-
+	
+	[PARAMETERS]
+		candles	: A list of prices.
+		K_period : The interval for the inital K calculation.
+		K_smooth: The smooting interval or the K period.
+		D_smooth: The smooting interval or the K period.
+		ind_span: The span of the indicator.
+	
+	[CALCULATION]
+		---
+	
+	[RETURN]
+		[{
+		"%K":float,
+		"%D":float
+		}, ... ]
+	"""
+	sto_K, sto_D = [], []
+	high_Low, curr_Low = [], []
+	stochOscil = []
+	sto_K_base = []
+
+	sRange = ind_span+K_period+K_smooth+D_smooth
+
+	for i in range(sRange):
+		high_Low.append(max(candles["high"][i:K_period+i])-min(candles["low"][i:K_period+i]))
+		curr_Low.append(candles["close"][i]-min(candles["low"][i:K_period+i]))
+
+	for i in range(sRange):
+		sto_K_base.append(float("{0:.2f}".format((curr_Low[i]/high_Low[i])*100)))
+
+	sto_K = get_SMA(sto_K_base, K_smooth, ind_span+D_smooth)
+	sto_D = get_SMA(sto_K, D_smooth, ind_span)
+
+	for i in range(ind_span):
+		stochOscil.append({"%K":sto_K[i], "%D":sto_D[i]})
+
+	return(stochOscil)
+
 
 
 ## This function is used to calculate and return SMA.
@@ -390,7 +437,7 @@ def get_ADX_DI(candles, adx_type=14, adx_smooth=14, ind_span=2):
 	[PARAMETERS]
 		candles	: Dict of candles.
 		adx_type: The ADX type.
-		adx_smooth: THe smooting interval or the adx.
+		adx_smooth: The smooting interval or the adx.
 		ind_span: The span of the indicator.
 	
 	[CALCULATION]
