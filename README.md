@@ -4,13 +4,13 @@
 This is a simple binance trader that uses the REST api to allow automation or manipulation of account detail/data. The script which in the default configuration uses a basic MACD trading setup to trade. The script however is very customisable and you'll be able to configure it as you with via the help of the document in the usage section.
 
 
-## Repository Contains:
+### Repository Contains:
 - run.py : This is used to start/setup the bot.
 - calls.py : This is used to manage binace api calls.
 - TradeIndicators.py : This contains indicators that can be used by the bot.
 - Traiding_Bot.py : This is the main script for the bot.
 
-## Setting File:
+### Setting File:
 - "Currency_Allowed" = The amount of btc allowed to share between every market.
 - "Market" = The market you want to trade.
 - "Time_Interval" = The Time interval for candles.
