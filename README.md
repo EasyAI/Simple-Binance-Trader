@@ -1,5 +1,8 @@
 # Simple Binance Trader
 
+# Disclaimer
+I am not responsible for the trades you make with the script, this script has not been exstensivly tested on live trades, I do not recommend you run this live and just use it to test a stratergy. That saying you are able to run it live but again at your own risk.
+
 ## Description
 This is a simple binance trader that uses the REST api and sockets to allow automation or manipulation of account detail/data. The script which in the default configuration uses a basic MACD trading setup to trade. The script however is very customisable and you'll be able to configure it as you with via the help of the document in the usage section.
 
@@ -26,4 +29,5 @@ To set up the bot and for any further detail please refer to the google doc link
 [Work In Progress]
 
 ### Contact
+Please if you find any bugs or issues contact me so I can improve.
 EMAIL: jlennie1996@gmail.com
