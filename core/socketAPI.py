@@ -23,6 +23,9 @@ class BinanceSOCK:
 
         self.socketBuffer = {'depth':{'bids':[], 'asks':[]}, 'candle':{}}
 
+        if query[-1] == '/':
+            query = query[:-1]
+
         self.destURL = '{0}/stream?streams={1}'.format(SOCKET_BASE, query)
 
 
