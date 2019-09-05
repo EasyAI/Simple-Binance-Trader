@@ -25,6 +25,8 @@ This is a simple binance trader that uses the REST api and sockets to allow auto
 - "keys" = both of the keys for the API.
 
 ## Usage
+To quickly install all the required modules use 'pip3 install -r requirements', this should install the modules for you.
+
 To set up the bot and for any further detail please refer to the google doc link below:
 https://docs.google.com/document/d/1VUx_1O5kQQxk0HfqqA8WyQpk6EbbnXcezAdqXkOMklo/edit?usp=sharing
 
