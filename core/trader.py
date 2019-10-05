@@ -276,19 +276,21 @@ class Trader(object):
 
             if conOrder['place']:
                 self.TradesInformation['orderType']['S'] = conOrder['tType']
+                price = float('{0:.{1}f}'.format(conOrder['price'], pRounding))
 
             else:
                 if tInfo['orderType']['S'] == 'signal':
                     if self.botRunType == 'real': 
-                        self.RESTapi.cancel_open_orders('BUY')
+                        self.RESTapi.cancel_open_orders('SELL')
+                    self.TradesInformation['orderStatus']['S'] = None
                     self.TradesInformation['orderType']['S'] = 'wait'
                     self.TradesInformation['sellPrice'] = 0
 
 
             '''############### SIGNAL SELL ###############'''
             if self.TradesInformation['orderType']['S'] == 'signal':
-                price = float('{0:.{1}f}'.format(cMarket['askPrice'], pRounding))
                 if price < tInfo['sellPrice'] or tInfo['sellPrice'] == 0:
+                    print('[PLACING]: {0}'.format(conOrder['description']))
                     order = {'place':True, 'side':'SELL'}
 
 
@@ -303,6 +305,7 @@ class Trader(object):
 
             if conOrder['place']:
                 self.TradesInformation['orderType']['B'] = conOrder['tType']
+                price = float('{0:.{1}f}'.format(conOrder['price'], pRounding))
 
             else:
                 ## This will reset the orders back to waiting if there are no orders.
@@ -315,8 +318,8 @@ class Trader(object):
 
             '''############### SIGNAL BUY ###############'''
             if self.TradesInformation['orderType']['B'] == 'signal':
-                price = float('{0:.{1}f}'.format(cMarket['bidPrice'], pRounding))
                 if price > tInfo['buyPrice']:
+                    print('[PLACING]: {0}'.format(conOrder['description']))
                     order = {'place':True, 'side':'BUY'}
 
         ## All orders to be placed will be managed via the manager.
