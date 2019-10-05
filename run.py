@@ -12,7 +12,7 @@ from core import botCore
 logging.basicConfig(level=logging.WARNING)
 
 ## Config File Path.
-settingPath = "settings.json"
+settingPath = 'settings.json'
 ##-------------------->
 
 ## Runtime management varaiables.
@@ -46,7 +46,7 @@ def load_core():
 
 
 def start_core(settingData):
-    runType = 'test'
+    runType = settingData['test']
 
     if bot_core.coreState != 'INVALID API KEYS':
 

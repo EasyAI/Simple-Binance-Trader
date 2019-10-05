@@ -1,8 +1,7 @@
 #! /usr/bin/env python3
 
-import sys
+import time
 import numpy as np
-import statistics as stat
 
 """ Base file used for my crypto  trading Algorithms, Indicators and formatting. """
 
@@ -28,15 +27,14 @@ import statistics as stat
 """
 
 
-
 ## This function is used to calculate and return the Bollinger Band indicator.
-def get_BOLL(prices, SMA_Len=21):
+def get_BOLL(prices, ma_type=21, stDev=2):
 	"""
 	This function uses 2 parameters to calculate the BB-
 	
 	[PARAMETERS]
 		prices	: A list of prices.
-		SMA_Len	: BB ma type.
+		ma_type	: BB ma type.
 	
 	[CALCULATION]
 		---
@@ -48,14 +46,18 @@ def get_BOLL(prices, SMA_Len=21):
 		'B':float
 		}, ... ]
 	"""
-	stdev 	= stat.stdev(prices[:SMA_Len])
-	SMA 	= float("{0:.{1}f}".format(get_SMA(prices, SMA_Len)[0], 8))
-	BTop 	= float("{0:.{1}f}".format(SMA + (stdev * 2), 8))
-	BBot 	= float("{0:.{1}f}".format(SMA - (stdev * 2), 8))
-	band 	= {"M":SMA, "T":BTop, "B":BBot}
+	span = len(prices)-ma_type
+	stdev = np.array([np.std(prices[i:(ma_type+i)+1]) for i in range(span)])
+	sma = get_SMA(prices, ma_type)
 
-	return(band)
+	BTop = np.array([sma[i] + (stdev[i] * stDev) for i in range(span)])
+	BBot = np.array([sma[i] - (stdev[i] * stDev) for i in range(span)])
 
+
+	return [{
+		"T":BTop[i], 
+		"M":sma[i], 
+		"B":BBot[i]} for i in range(span)]
 
 
 ## This function is used to calculate and return the RSI indicator.
@@ -76,7 +78,7 @@ def get_RSI(prices, rsiType=14):
 		float,
 		... ]
 	"""
-	prices 	= list(reversed(prices))
+	prices 	= np.flipud(np.array(prices))
 	deltas 	= np.diff(prices)
 	rsi 	= np.zeros_like(prices)
 	seed 	= deltas[:rsiType+1]
@@ -99,21 +101,23 @@ def get_RSI(prices, rsiType=14):
 		down = (down*(rsiType-1)+downVal)/rsiType
 
 		rs = up/down
-		rsi[i] = float("{0:.2f}".format(100 - 100 /(1+rs)))
+		rsi[i] = 100 - 100 /(1+rs)
 
-	delIndex = []
-	for i in range(len(rsi)):
-		if rsi[i] == 0:
-			delIndex.append(i)
+	fRSI = np.flipud(np.array(rsi[rsiType:]))
 
-	fRSI = np.delete(rsi, delIndex)
+	return fRSI.round(2)
 
-	return(list(reversed(fRSI)))
 
+def get_stochastics(priceClose, priceHigh, priceLow, period=14):
+
+	span = len(priceClose)-period
+	stochastic = np.array([[priceHigh[i:period+i].max()-priceLow[i:period+i].min(), priceClose[i]-priceLow[i:period+i].min()] for i in range(span)])
+
+	return stochastic
 
 
 ## This function is used to calculate and return the stochastics RSI indicator.
-def get_stochRSI(prices, rsiType=14, ind_span=2):
+def get_stochRSI(prices, rsiPrim=14, rsiSecon=14, K=3, D=3):
 	"""
 	This function uses 3 parameters to calculate the  Stochastics RSI-
 	
@@ -126,37 +130,19 @@ def get_stochRSI(prices, rsiType=14, ind_span=2):
 		---
 	
 	[RETURN]
-		[
-		float,
-		float,
-		... ]
+		[{
+		"%K":float,
+		"%D":float
+		}, ... ]
 	"""
-	sto_K, sto_D 	= [], []
-	stochRSI 		= []
-	av_HL, av_CL 	= [], []
-	high_Low, curr_Low = [], []
-
-	stoch = []
-
-	RSI = get_RSI(prices)
-
-	for i in range(ind_span+3):
-		high_Low.append(max(RSI[i:rsiType+i])-min(RSI[i:rsiType+i]))
-		curr_Low.append(RSI[i]-min(RSI[i:rsiType+i]))
-
-	for i in range(ind_span):
-		av_HL.append(get_SMA(high_Low[i:i+3], 3)[0])
-		av_CL.append(get_SMA(curr_Low[i:i+3], 3)[0])
-
-	for i in range(ind_span):
-		sto_K.append(float("{0:.2f}".format((av_CL[i]/av_HL[i])*100)))
-
-	return(sto_K)
-
+	span = len(prices)-rsiPrim-rsiSecon-K
+	RSI = get_RSI(prices, rsiType=rsiPrim)
+	
+	return get_S_O(RSI, RSI, RSI, period=rsiSecon, K=K, D=D)
 
 
 ## This function is used to calculate and return the Stochastic Oscillator indicator.
-def get_S_O(candles, K_period=14, K_smooth=3, D_smooth=3, ind_span=2):
+def get_S_O(priceClose, priceHigh, priceLow, period=14, K=3, D=3):
 	"""
 	This function uses 5 parameters to calculate the  Stochastic Oscillator-
 	
@@ -176,32 +162,25 @@ def get_S_O(candles, K_period=14, K_smooth=3, D_smooth=3, ind_span=2):
 		"%D":float
 		}, ... ]
 	"""
-	sto_K, sto_D = [], []
-	high_Low, curr_Low = [], []
-	stochOscil = []
-	sto_K_base = []
+	priceClose = np.array(priceClose)
+	priceHigh = np.array(priceHigh)
+	priceLow = np.array(priceLow)
 
-	sRange = ind_span+K_period+K_smooth+D_smooth
+	span = len(priceClose)-period
+	stochastic = get_stochastics(priceClose, priceHigh, priceLow, period)
 
-	for i in range(sRange):
-		high_Low.append(max(candles["high"][i:K_period+i])-min(candles["low"][i:K_period+i]))
-		curr_Low.append(candles["close"][i]-min(candles["low"][i:K_period+i]))
+	HL_CL = np.array([((stochastic[:, 1][i] / stochastic[:, 0][i]) * 100) for i in range(span)])
 
-	for i in range(sRange):
-		sto_K_base.append(float("{0:.2f}".format((curr_Low[i]/high_Low[i])*100)))
+	sto_K = get_SMA(HL_CL, K)
+	sto_D = get_SMA(sto_K, D)
 
-	sto_K = get_SMA(sto_K_base, K_smooth, ind_span+D_smooth)
-	sto_D = get_SMA(sto_K, D_smooth, ind_span)
-
-	for i in range(ind_span):
-		stochOscil.append({"%K":sto_K[i], "%D":sto_D[i]})
-
-	return(stochOscil)
-
+	return [{
+		"%K":sto_K[i], 
+		"%D":sto_D[i]} for i in range(len(sto_D))]
 
 
 ## This function is used to calculate and return SMA.
-def get_SMA(prices, ma_type, ind_span=2):
+def get_SMA(prices, maPeriod, prec=8):
 	"""
 	This function uses 3 parameters to calculate the Simple Moving Average-
 	
@@ -211,7 +190,7 @@ def get_SMA(prices, ma_type, ind_span=2):
 		ind_span: The span of the indicator.
 	
 	[CALCULATION]
-		---
+		SMA = average of prices within a given period
 	
 	[RETURN]
 		[
@@ -219,16 +198,14 @@ def get_SMA(prices, ma_type, ind_span=2):
 		float,
 		... ]
 	"""
-	ma_list  = []
+	span = len(prices) - maPeriod + 1
+	ma_list = np.array([np.mean(prices[i:(maPeriod+i)]) for i in range(span)])
 
-	for i in range(ind_span):
-		ma_list.append(float("{0:.10f}".format(np.mean(prices[i:i+ma_type]))))
-
-	return ma_list
+	return ma_list.round(prec)
 
 
 ## This function is used to calculate and return EMA.
-def get_EMA(prices, ma_type, ind_span=2):
+def get_EMA(prices, maPeriod, prec=8):
 	"""
 	This function uses 3 parameters to calculate the Exponential Moving Average-
 	
@@ -238,7 +215,8 @@ def get_EMA(prices, ma_type, ind_span=2):
 		ind_span: The span of the indicator.
 	
 	[CALCULATION]
-		---
+		weight = 2 / (maPerido + 1)
+		EMA = ((close - prevEMA) * weight + prevEMA)
 	
 	[RETURN]
 		[
@@ -246,27 +224,23 @@ def get_EMA(prices, ma_type, ind_span=2):
 		float,
 		... ]
 	"""
-	weight 	= float("{0:.3f}".format(2/(ma_type+1)))
-	SMA 	= get_SMA(prices[ind_span+2:], ma_type-1, 1)[0]
-	seed 	= float("{0:.8f}".format(SMA + weight * (prices[ind_span] - SMA)))
-	EMA 	= [seed]
+	span = len(prices) - maPeriod
+	EMA = np.zeros_like(prices[:span])
+	weight = (2 / (maPeriod +1))
+	SMA = get_SMA(prices[span:], maPeriod)
+	seed = SMA + weight * (prices[span-1] - SMA)
+	EMA[0] = seed
 
-	try:
-		for i in range(ind_span+1):
-			EMA.append(float("{0:.8f}".format((EMA[i] + weight * (prices[ind_span-i] - EMA[i])))))
-	except Exception as e:
-		print(prices)
-		sys.exit(e)
+	for i in range(1, span):
+		EMA[i] = (EMA[i-1] + weight * (prices[span-i-1] - EMA[i-1]))
 
-	del EMA [:2]
-	return(list(reversed(EMA)))
+	return np.flipud(EMA.round(prec))
 
 
-
-## This function is used to calculate and return Simple Smoothing.
-def get_SS(prices, SS_type, ind_span=2):
+## This function is used to calculate and return Rolling Moving Average.
+def get_RMA(prices, maPeriod, prec=8):
 	"""
-	This function uses 3 parameters to calculate the Simple Smoothing-
+	This function uses 3 parameters to calculate the Rolling Moving Average-
 	
 	[PARAMETERS]
 		prices 	: A list of prices.
@@ -274,7 +248,7 @@ def get_SS(prices, SS_type, ind_span=2):
 		ind_span: The span of the indicator.
 	
 	[CALCULATION]
-		---
+		RMA = ((prevRMA * (period - 1)) + currPrice) / period
 	
 	[RETURN]
 		[
@@ -282,20 +256,20 @@ def get_SS(prices, SS_type, ind_span=2):
 		float,
 		... ]
 	"""
-	SMA = get_SMA(prices[ind_span+2:], SS_type, 1)[0]
-	seed = float("{0:.8f}".format((SMA-(SMA/SS_type))+prices[ind_span+1]))
-	SS = [seed]
+	span = len(prices) - maPeriod
+	SS = np.zeros_like(prices[:span])
+	SMA = get_SMA(prices[span:], maPeriod)
+	seed = ((SMA * (maPeriod-1)) + prices[span-1]) / maPeriod
+	SS[0] = seed
 
-	for i in range(ind_span+1):
-		SS.append(float("{0:.8f}".format((SS[i]-(SS[i]/SS_type))+prices[ind_span-i])))
+	for i in range(1, span):
+		SS[i] = ((SS[i-1] * (maPeriod-1)) + prices[span-i-1]) / maPeriod
 
-	del SS [:2]
-	return(list(reversed(SS)))
-
+	return np.flipud(SS.round(prec))
 
 
 ## This function is used to calculate and return the the MACD indicator.
-def get_MACD(prices, Efast=12, Eslow=26, signal=9, ind_span=2):
+def get_MACD(prices, Efast=12, Eslow=26, signal=9):
 	"""
 	This function uses 5 parameters to calculate the Moving Average Convergence/Divergence-
 	
@@ -307,7 +281,9 @@ def get_MACD(prices, Efast=12, Eslow=26, signal=9, ind_span=2):
 		ind_span: The span of the indicator.
 	
 	[CALCULATION]
-		---
+		MACDLine = fastEMA - slowEMA
+		SignalLine = EMA of MACDLine
+		Histogram = MACDLine - SignalLine
 	
 	[RETURN]
 		[{
@@ -316,26 +292,21 @@ def get_MACD(prices, Efast=12, Eslow=26, signal=9, ind_span=2):
 		'his':float
 		}, ... ]
 	"""
-	fast_EMA 	= get_EMA(prices, Efast, (60))
-	slow_EMA 	= get_EMA(prices, Eslow, (60))
-	MACD_line 	= []
-	MACD 		= []
+	fastEMA = get_EMA(prices, Efast)
+	slowEMA = get_EMA(prices, Eslow)
 
-	for i in range(60):
-		MACD_line.append(float("{0:.8f}".format(fast_EMA[i] - slow_EMA[i])))
+	macdLine = np.subtract(fastEMA[:len(slowEMA)], slowEMA)
+	signalLine = get_EMA(macdLine, signal)
+	histogram = np.subtract(macdLine[:len(signalLine)], signalLine)
 
-	signal_line = get_SMA(MACD_line, signal, ind_span+30)[0:ind_span]
-
-	for i in range(ind_span):
-		histogram = MACD_line[i] - signal_line[i]
-		MACD.append({"fast":MACD_line[i], "slow":signal_line[i], "his":histogram})
-
-	return(MACD)
-
+	return [({
+		"macd":float("{0:.8f}".format(macdLine[i])), 
+		"signal":float("{0:.8f}".format(signalLine[i])), 
+		"hist":float("{0:.8f}".format(histogram[i]))}) for i in range(len(signalLine))]
 
 
 ## This function is used to calculate and return the True Range.
-def get_trueRange(candles, ind_span=2):
+def get_trueRange(candles):
 	"""
 	This function uses 2 parameters to calculate the True Range-
 
@@ -352,23 +323,26 @@ def get_trueRange(candles, ind_span=2):
 		float,
 		... ]
 	"""
+	highPrices = [candle[2] for candle in candles]
+	lowPrices = [candle[3] for candle in candles]
+	closePrices = [candle[4] for candle in candles]
+	span = len(closePrices) - 1
 	trueRange = []
 
-	for i in range(ind_span):
+	for i in range(span):
 		## Get the true range CURRENT HIGH minus CURRENT LOW, CURRENT HIGH mins LAST CLOSE, CURRENT LOW minus LAST CLOSE.
-		HL = candles["high"][i] - candles["low"][i]
-		H_PC = abs(candles["high"][i] - candles["close"][i+1])
-		L_PC = abs(candles["low"][i] - candles["close"][i+1])
+		HL = highPrices[i] - lowPrices[i]
+		H_PC = abs(highPrices[i] - closePrices[i+1])
+		L_PC = abs(lowPrices[i] - closePrices[i+1])
 
 		## True range is the max of all 3
-		trueRange.append(max(HL, max(H_PC, L_PC)))
+		trueRange.append(max([HL, H_PC, L_PC]))
 
-	return(trueRange)
-
+	return trueRange
 
 
 ## This function is used to calculate and return the Average True Range.
-def get_ATR(candles, atr_type=14, ind_span=2):
+def get_ATR(candles, atrPeriod=14):
 	"""
 	This function uses 3 parameters to calculate the Average True Range-
 	
@@ -386,17 +360,14 @@ def get_ATR(candles, atr_type=14, ind_span=2):
 		float,
 		... ]
 	"""
-	ATR = []
-	trueRange = []
+	trueRange = get_trueRange(candles)
+	ATR = get_RMA(trueRange, atrPeriod)
 
-	trueRange = get_trueRange(candles, (atr_type+ind_span))
-	ATR = get_EMA(trueRange, atr_type, (ind_span))
-
-	return(ATR)
+	return ATR
 
 
 ## This is used to calculate the Direcional Movement.
-def get_DM(candles, ind_span=2):
+def get_DM(candles):
 	"""
 	This function uses 2 parameters to calculate the positive and negative Directional Movement-
 	
@@ -413,26 +384,28 @@ def get_DM(candles, ind_span=2):
 		float
 		], ... ]
 	"""
-	PDM = []
-	NDM = []
+	highPrices = [candle[2] for candle in candles]
+	lowPrices = [candle[3] for candle in candles]
+	span = len(highPrices) - 1
+	PDM = np.zeros_like(highPrices[:span])
+	NDM = np.zeros_like(highPrices[:span])
 
-	for i in range(ind_span):
+	for i in range(span):
 		## UP MOVE: current high minus last high, DOWN MOVE: last low minus current low.
-		upMove = float("{0:.8f}".format(candles["high"][i] - candles["high"][i+1]))
-		downMove = float("{0:.8f}".format(candles["low"][i+1] - candles["low"][i]))
+		upMove = highPrices[i] - highPrices[i+1]
+		downMove = lowPrices[i+1] - lowPrices[i]
 
 		## If MOVE is greater than other MOVE and greater than 0.
-		PDM.append(upMove if 0 < upMove > downMove else 0)
-		NDM.append(downMove if 0 < downMove > upMove else 0)
+		PDM[i] = upMove if 0 < upMove > downMove else 0
+		NDM[i] = downMove if 0 < downMove > upMove else 0
 
-	return([PDM, NDM])
-
+	return [PDM, NDM]
 
 
 ## This function is used to calculate and return the ADX indicator.
-def get_ADX_DI(candles, adx_type=14, adx_smooth=14, ind_span=2):
+def get_ADX_DI(rCandles, adxLen=14, dataType="numpy"):
 	"""
-	This function uses 4 parameters to calculate the ADX-
+	This function uses 3 parameters to calculate the ADX-
 
 	[PARAMETERS]
 		candles	: Dict of candles.
@@ -450,40 +423,41 @@ def get_ADX_DI(candles, adx_type=14, adx_smooth=14, ind_span=2):
 		'-DI':float
 		}, ... ]
 	"""
-	ADX_DI 	= []
-	ADX 	= []
-	PDI 	= []
-	NDI 	= []
-	DI 		= []
 
-	trueRange = get_trueRange(candles, ((adx_type*2)+ind_span+adx_smooth)+28)
-	DM 	= get_DM(candles, ((adx_type*2)+ind_span+adx_smooth)+25)
-	ATR = get_SS(trueRange, adx_type, (adx_type+ind_span+adx_smooth)+26)
-	PDM = get_SS(DM[0], adx_type, (adx_type+ind_span+adx_smooth)+26)
-	NDM = get_SS(DM[1], adx_type, (adx_type+ind_span+adx_smooth)+26)
+	if dataType == "normal":
+		candles = np.array([[0, 
+			rCandles["open"][i],
+			rCandles["high"][i],
+			rCandles["low"][i],
+			rCandles["close"][i]]for i in range(len(rCandles["open"]))]).astype(np.float)
 
-	for i in range(ind_span+adx_type+adx_smooth+24):
-		PDI.append((PDM[i]/ATR[i]) * 100)
-		NDI.append((NDM[i]/ATR[i]) * 100)
+	elif dataType == "numpy":
+		candles = rCandles
 
-	for i in range(ind_span+adx_type+adx_smooth+22):
-		DI.append(abs(PDI[i]-NDI[i])/(PDI[i]+NDI[i]) * 100)
+	baseIndLen = adxLen
+	ADX_DI = []
 
-	ADX = get_SMA(DI, adx_type, ind_span+adx_smooth+20)
+	DM = get_DM(candles)
+	ATR = get_ATR(candles, baseIndLen)
+	PDM = get_RMA(DM[0], baseIndLen)
+	NDM = get_RMA(DM[1], baseIndLen)
 
-	for i in range(adx_smooth):
-		ADX_2dp = float("{0:.2f}".format(ADX[i]))
-		PDI_2dp = float("{0:.2f}".format(PDI[i]))
-		NDI_2dp = float("{0:.2f}".format(NDI[i]))
+	newRange = len(ATR) if len(ATR) < len(PDM) else len(PDM)
+	PDI = np.array([((PDM[i] / ATR[i]) * 100) for i in range(newRange)])
+	NDI = np.array([((NDM[i] / ATR[i]) * 100) for i in range(newRange)])
 
-		ADX_DI.append({"ADX":ADX_2dp, "+DI":PDI_2dp, "-DI":NDI_2dp})
+	DI = np.array([(abs(PDI[i] - NDI[i]) / (PDI[i] + NDI[i]) * 100) for i in range(len(NDI))])
 
-	return(ADX_DI[0:ind_span])
+	ADX = get_SMA(DI, adxLen)
 
+	return [({
+		"ADX":float("{0:.2f}".format(ADX[i])), 
+		"+DI":float("{0:.2f}".format(PDI[i])), 
+		"-DI":float("{0:.2f}".format(NDI[i]))}) for i in range(len(ADX))]
 
 
 ## This function is used to calculate and return the ichimoku indicator.
-def get_Ichimoku(candles, tS_type=9, kS_type=26, sSB_type=52, ind_span=2):
+def get_Ichimoku(candles, tS_type=9, kS_type=26, sSB_type=52, dataType="numpy"):
 	"""
 	This function uses 5 parameters to calculate the Ichimoku Cloud-
 
@@ -507,95 +481,108 @@ def get_Ichimoku(candles, tS_type=9, kS_type=26, sSB_type=52, ind_span=2):
 		'Chikou':float
 		}, ... ]
 	"""
+	if dataType == "normal":
+		highPrices = np.array(candles["high"]).astype(np.float)
+		lowPrices = np.array(candles["low"]).astype(np.float)
+		closePrices = np.array(candles["close"]).astype(np.float)
+
+	elif dataType == "numpy":
+		highPrices = [candle[2].astype(np.float) for candle in candles]
+		lowPrices = [candle[3].astype(np.float) for candle in candles]
+		closePrices = [candle[4].astype(np.float) for candle in candles]
+
 	ichimoku = []
-	tS = 0
-	kS = 0
-	sSA = 0
-	sSB = 0
-	cS = 0
-	ichimoku = []
+	span = len(lowPrices)
 
-	for i in range(ind_span):
+	tS = [((max(highPrices[i:tS_type+i]) + min(lowPrices[i:tS_type+i])) / 2) for i in range(span)]
+	kS = [((max(highPrices[i:kS_type+i]) + min(lowPrices[i:kS_type+i])) / 2) for i in range(span)]
 
-		tS = (max(candles["high"][i:tS_type+i])+min(candles["low"][i:tS_type+i]))/2
-		kS = (max(candles["high"][i:kS_type+i])+min(candles["low"][i:kS_type+i]))/2
-		sSA = (kS+tS)/2
-		sSB = (max(candles["high"][i:sSB_type+i])+min(candles["low"][i:sSB_type+i]))/2
-		cS = candles["close"][i]
+	sSA = [((kS[i] + tS[i]) / 2) for i in range(span)]
 
-		fTS = float("{0:.8f}".format(tS))
-		fKS = float("{0:.8f}".format(kS))
-		fSSA = float("{0:.8f}".format(sSA))
-		fSSB = float("{0:.8f}".format(sSB))
-		fCS = float("{0:.8f}".format(cS))
+	sSB = [((max(highPrices[i:sSB_type+i]) + min(lowPrices[i:sSB_type+i])) / 2) for i in range(span)]
 
-		ichimoku.append({'Tenkan':fTS, 'Kijun':fKS, 'Senkou A':fSSA, 'Senkou B':fSSB, 'Chikou':fCS})
-
-	return(ichimoku)
+	return [({
+		"Tenkan":float("{0:.8f}".format(tS[i])),
+		"Kijun":float("{0:.8f}".format(kS[i])),
+		"Senkou A":float("{0:.8f}".format(sSA[i])),
+		"Senkou B":float("{0:.8f}".format(sSB[i])),
+		"Chikou":float("{0:.8f}".format(closePrices[i]))}) for i in range(span)]
 
 
-
-def get_stage_segments(trade, startPrice, inc=False, minInc=7):
-	segments 	= []
-	startPrec 	= 0.0007 if trade is 'Buy' else 0.001
-	incPrec		= 0
-
-	for i in range(100):
-		precPrice = startPrice*(startPrec*i)
-
-		if inc and i >= minInc:
-			incPrec += 0.00025
-			extraPrice = startPrice*incPrec
-
-		if trade == 'Buy':
-			if inc and i >= minInc: segments.append(float("{0:.8f}".format((startPrice-precPrice)-extraPrice)))
-			else: segments.append(float("{0:.8f}".format(startPrice-precPrice)))
-
-		elif trade == 'Sell':
-			if inc and i >= minInc: segments.append(float("{0:.8f}".format((startPrice+precPrice)+extraPrice)))
-			else: segments.append(float("{0:.8f}".format(startPrice+precPrice)))
-
-	return(segments)
-
-
-"""
-[################################################################################################################################]
-[#####################################################] FORMATTING SECTION [#####################################################]
-[#####################################################]v^v^v^v^v^^v^v^v^v^v[#####################################################]
-"""
-
-def sort_candle(candles, exchange):
+def get_CCI(rCandles, source, period=20, constant=0.015, dataType="numpy"):
 	"""
-	Sorts the candles into nice columns. (This is to set candles up in a format that can be used by the above functions)
+	source is refering too where the typical price will come from. (high, low, close, all)
+
+	CCI = (Typical Price  -  20-period SMA of TP) / (.015 x Mean Deviation)
+
+	Typical Price (TP) = (High + Low + Close)/3
+
+	Constant = .015
+
 	"""
-	candleInfo = {"open":[],"high":[],"low":[],"close":[],"volume":[]}
+	if dataType == "normal":
+		candles = np.array([[0, 
+				rCandles["open"][i],
+				rCandles["high"][i],
+				rCandles["low"][i],
+				rCandles["close"][i]] for i in range(len(rCandles["open"]))]).astype(np.float)
 
-	if exchange.lower() == "binance":
-		## This orders candles recived in the raw binance exchange format.
-		for i in range(len(candles)):
-			candleInfo["open"].insert(i, candles[i]["Open"])
-			candleInfo["high"].insert(i, candles[i]["High"])
-			candleInfo["low"].insert(i, candles[i]["Low"])
-			candleInfo["close"].insert(i, candles[i]["Close"])
-			candleInfo["volume"].insert(i, candles[i]["Volume"])
+	elif dataType == "numpy":
+		candles = rCandles
 
-	elif exchange.lower() == "bittrex":
-		## This orders candles recived in the raw bittrex exchange format.
-		for i in range(len(candles)):
-			candlesInfo["open"].insert(i, candles[i]["O"])
-			candlesInfo["high"].insert(i, candles[i]["H"])
-			candlesInfo["low"].insert(i, candles[i]["L"])
-			candlesInfo["close"].insert(i, candles[i]["C"])
-			candlesInfo["volume"].insert(i, candles[i]["V"])
+	CCI = []
 
-	elif exchange.lower() == "bitmex":
-		## This orders candles recived in the raw bitmex exchange format.
-		for i in range(len(candles)):
-			candleInfo["open"].insert(i, candles[i]["open"])
-			candleInfo["high"].insert(i, candles[i]["high"])
-			candleInfo["low"].insert(i, candles[i]["low"])
-			candleInfo["close"].insert(i, candles[i]["close"])
-			candleInfo["volume"].insert(i, candles[i]["volume"])
+	if source == 'high':
+		typicalPrice = np.array([candle[2] for candle in candles])
+	elif source == 'low':
+		typicalPrice = np.array([candle[3] for candle in candles])
+	elif source == 'close':
+		typicalPrice = np.array([candle[4] for candle in candles])
+	elif source == 'all':
+		typicalPrice = np.array([((candle[2] + candle[3] + candle[4]) / 3) for candle in candles])
+	else:
+		raise ValueError('Invalid CCI source. Make sure the CCI source is either; high, low, close, all')
 
-	return(candleInfo)
-	
+	MAD = get_Mean_ABS_Deviation(typicalPrice, period)
+	smTP = get_SMA(typicalPrice, period)
+
+	for i in range(len(MAD)):
+		CCI.append(((typicalPrice[i] - smTP[i]) / (constant * MAD[i])).round(2))
+
+	return(CCI)
+
+
+def get_Mean_ABS_Deviation(prices, period):
+	"""
+	There are four steps to calculating the Mean Deviation: 
+	First, subtract the most recent 20-period average of the typical price from each period's typical price. 
+	Second, take the absolute values of these numbers. 
+	Third, sum the absolute values. 
+	Fourth, divide by the total number of periods (20).
+	"""
+	partOneTwo = []
+	partThreeFour = []
+
+	sma = get_SMA(prices, period)
+
+	for i,ma in enumerate(sma):
+		partTwo = [abs(price - ma) for price in prices[i:i+period]]
+
+		partThreeFour.append(np.mean(partTwo))
+
+	return(partThreeFour)
+
+
+
+def get_Force_Index(cPrices, volume, maPeriod=9):
+	"""
+	Force Index(1) = {Close (current period)  -  Close (prior period)} x Volume
+	Force Index(13) = 13-period EMA of Force Index(1)
+	"""
+	span = len(cPrices) - 1
+
+	baseValues = [(cPrices[i] - cPrices[i+1])*volume[i] for i in range(span)]
+
+	forceIndex = get_EMA(baseValues, maPeriod)
+
+	return(forceIndex)
