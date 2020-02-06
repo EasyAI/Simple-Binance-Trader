@@ -18,11 +18,12 @@ This is a simple binance trader that uses the REST api and sockets to allow auto
   - trader.py : The main trader inchage or updating and watching orders.
   
 ### Setting File:
-- "market" = The market you want to trade.
-- "amount" = The amount of btc allowed to share between every market.
-- "interval" = The Time interval for candles.
-- "test" = If the bot is run in test mode or not (Run in real mode ar your own risk, this script has not been exstensivly tested and may have issues.)
-- "keys" = both of the keys for the API.
+- "publicKey" = Public API key.
+- "privateKey" = Private API key.
+- "runType" = If the bot is run in test mode or not (Run in real mode ar your own risk, this script has not been exstensivly tested and may have issues.)
+- "mainInterval" = The Time interval for candles.
+- "traderCurrency" = The amount of btc allowed to share between every market.
+- "markets" = The market you want to trade.
 
 ## Usage
 To quickly install all the required modules use 'pip3 install -r requirements', this should install the modules for you.
