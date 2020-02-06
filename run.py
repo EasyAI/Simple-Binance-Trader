@@ -1,5 +1,9 @@
 #! /usr/bin/env python3
 
+'''
+run
+
+'''
 import os
 import sys
 import time
@@ -9,60 +13,93 @@ import logging
 import threading
 from core import botCore
 
-logging.basicConfig(level=logging.WARNING)
-
 ## Config File Path.
-settingPath = 'settings.json'
+cwd = os.getcwd()
+settings = ("{0}/settings".format(cwd))
 ##-------------------->
 
+
+## Setting up the logger.
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
 ## Runtime management varaiables.
+updaterThreadActive = False
+coreManThreadActive = False
 bot_core = None
 ##-------------------->
 
 
-def load_core():
+with open('settings', 'r') as file:
+
+    for line in file.readlines():
+        key, data = line.split('=')
+
+        if data != None:
+            data = data.replace('\n', '')
+
+        if key == 'publicKey':
+            ## API public key.
+            publicKey = data
+
+        elif key == 'markets':
+            ## API private key.
+
+            data.replace(' ', '')
+
+            if ',' in data:
+                 data.split(',')
+            else:
+                data = [data]
+
+            markets_trading = data
+
+        elif key == 'privateKey':
+            ## API private key.
+            privateKey = data
+
+        elif key == 'runType':
+            ## The type of run (real or not).
+            runType = data
+
+            if data != 'real':
+                publicKey = None
+                privateKey = None
+
+        elif key == 'mainInterval':
+            ## Main interval per market.
+            mainInterval = data
+
+        elif key == 'traderCurrency':
+            ## Maxcurreny per trader
+            MAC = float(data)
+
+
+def main():
+    '''
+    This is where all the data that will be used during runtime is collected.
+    -> Setup the botcore.
+    -> Setup the terminal feed thread.
+    -> Start the botcore.
+    '''
     global bot_core
+    logging.info('start.')
 
-    ## load the data from the settings file.
-    try:
-        settingData = json.load(open(settingPath, 'r'))
-        logging.info('Loaded the settings data from file.')
-    except:
-        ## set and error for the missing api key file.
-        logging.error('NO SETTINGS DATA')
-        return
-
-    ## Create the bot_core object.
-    bot_core = botCore.BotCore(settingData['keys']['public'], settingData['keys']['private'])
+    print('Starting in {0} mode.'.format(runType.upper()))
+    
+    ## <----------------------------------| RUNTIME CHECKS |-----------------------------------> ##
+    bot_core = botCore.BotCore(runType, MAC, mainInterval, markets_trading, publicKey, privateKey)
     logging.info('Created bot core object.')
 
-    ## start the core 
-    start_core(settingData)
-
+    ## <----------------------------------| RUNTIME CHECKS |-----------------------------------> ##
     ## Create the thread that send interval updates to the web UI.
-    updaterThread = threading.Thread(target=screen_updater)
+    updaterThread = threading.Thread(target=feed_updater)
     updaterThread.start()
+
     logging.info('Created updater thread.')
 
-
-def start_core(settingData):
-    runType = settingData['test']
-
-    if bot_core.coreState != 'INVALID API KEYS':
-
-        ## Setup the trading variables.
-        bot_core.mtInfo = {'market':settingData['market'], 'amount':settingData['amount']}
-        bot_core.mainInterval = settingData['interval']
-
-        ## Set real or test trading.
-        if runType == 'test':
-            logging.warning('Starting in TEST mode.')
-            bot_core.traderRunType = 'test'
-        else:
-            logging.warning('Starting in REAL mode.')
-            bot_core.traderRunType = 'real'
-
-        ## Start the core.
+    ## <----------------------------------| RUNTIME CHECKS |-----------------------------------> ##
+    if bot_core != None:
         bot_core.start()
         logging.info('Started bot core.')
         return
@@ -70,69 +107,81 @@ def start_core(settingData):
     logging.error('Unable to start collecting.')
 
 
-def screen_updater():
-    '''
-    This is used to print to the screen.
-    '''
+def feed_updater():
+
     while True:
-        if bot_core.coreState == 'Running':
+        totalTrades = 0
+        totalOutcomes = 0
+        traders = bot_core.get_trader_data()
 
-            tObj = bot_core.get_trader_data()
+        if traders != {}:
+            for market in traders:
+                if traders[market]['object']:
+                    tI = traders[market]['object']['tradesInfo']
 
-            rT = tObj['runtime']
-            cM = tObj['currentMarket']
-            tI = tObj['tradesInfo']
-            marketInfoString = ''
+                    totalTrades += tI['#Trades']
+                    totalOutcomes += tI['overall']
 
-            marketInfoString += 'Market: {0} | state: {1} | last update: {2} | trades: {3} | outcome: {4:8f}\n'.format(rT['market'], 
-                                                                                            rT['state'], 
-                                                                                            rT['time'],
-                                                                                            tI['#Trades'],
-                                                                                            tI['overall'])
+            detailString = '|#======#| Calls: {0} | P:{1},L:{2}/{3} | Total Trades: {4} | Overall: {5:.8f} |#======#|'.format(
+                                                                                                    bot_core.RESTapi.callCounter, 
+                                                                                                    bot_core.passiveTraders,
+                                                                                                    bot_core.liveTraders, 
+                                                                                                    bot_core.maxLiveTraders,
+                                                                                                    totalTrades,
+                                                                                                    totalOutcomes)
+            print('\n|#{0}#|'.format('='*(len(detailString)-4)))
+            print(detailString)
+            print('|#{0}#|'.format('='*(len(detailString)-4)))
 
-            marketInfoString += 'last price: {0:8f} | bid price: {1:8f} | ask price: {2:8f}\n'.format(cM['lastPrice'],
-                                                                                            cM['askPrice'],
-                                                                                            cM['bidPrice'])
+            paint_scrn(traders)
 
-            if tI['orderType']['S'] == None:
-                fmtTypeStr = 'buy type: {0}'.format(tI['orderType']['B'])
-                orderStatus = tI['orderStatus']['B']
-                side = 'buy'
-            else:
-                fmtTypeStr =  'sell type: {0}'.format(tI['orderType']['S'])
-                orderStatus = tI['orderStatus']['S']
-                side = 'sell'
-
-            marketInfoString += 'trade state: {0} | buy price: {1:8f} | sell price: {2:8f} | {3} | order status: {4}\n\n'.format(side,
-                                                                                                                    tI['buyPrice'],
-                                                                                                                    tI['sellPrice'],
-                                                                                                                    fmtTypeStr,
-                                                                                                                    orderStatus)
-            print(marketInfoString)
-
-        time.sleep(10)
+        time.sleep(20)
 
 
-def make_setting_file():
-    '''
-    make a new setting file.
-    '''
-    data = {
-    'market':'BTC-LTC',
-    'amount':0.001,
-    'interval':'5m',
-    'test':True,
-    'keys':{'public':'', 'private':''}}
+def paint_scrn(traderData):
 
-    settingFile = open(settingPath, 'w')
-    settingFile.write(json.dumps(data))
-    settingFile.close()
+    for market in traderData:
+
+        if not traderData[market]['status'] or traderData[market]['status'] == 'OT':
+            continue
+
+        tObj = traderData[market]['object']
+
+        rT = tObj['runtime']
+        cM = tObj['currentMarket']
+        tI = tObj['tradesInfo']
+        ind = tObj['indicators']
+
+        if ind == {}:
+            continue
+
+        print('[{0}] market: {1} | state: {2} | overall: {3:.8f} | last update: {4} | trades {5}'.format(
+            traderData[market]['status'],
+            rT['symbol'],
+            rT['state'],
+            tI['overall'],
+            rT['time'],
+            tI['#Trades']))
+        
+        if tI['orderType']['S'] == None:
+            print('BUY| type: {0} | status: {1} | Bprice {2:.8f} | Sprice {3:.8f} | last: {4:.8f}'.format(
+                tI['orderType']['B'],
+                tI['orderStatus']['B'],
+                tI['buyPrice'],
+                tI['sellPrice'],
+                cM['lastPrice']))
+        else:
+            print('SELL| type: {0} | status: {1} | Bprice {2:.8f} | Sprice {3:.8f} | last: {4:.8f}'.format(
+                tI['orderType']['S'],
+                tI['orderStatus']['S'],
+                tI['buyPrice'],
+                tI['sellPrice'],
+                cM['lastPrice']))
+
+        if 'CCI' in ind:
+            CCI = ind['CCI']
+            print('CCI[0]: {0} | max(CCI[1:25])<0: {1}\n'.format(CCI[0], (max(CCI[1:25]) < 0)))
 
 
 if __name__ == '__main__':
-
-    if os.path.isfile(settingPath):
-        load_core()
-    else:
-        make_setting_file()
-    
+    main()

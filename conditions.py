@@ -18,12 +18,7 @@ price: The price the order should be placed at
 def sell_conditions(nInd, currMarket, tInfo, candles):
     ## Setup any sell conditions here. ##
 
-    ma9 = nInd['MA9']
-    ma21 = nInd['MA21']
-    bb = nInd['BB']
-    rsi = nInd['RSI']
     macd = nInd['MACD']
-    ichi = nInd['Ichimoku']
 
     lastPrice = currMarket['lastPrice']
     askPrice = currMarket['askPrice']
@@ -41,12 +36,7 @@ def sell_conditions(nInd, currMarket, tInfo, candles):
 def buy_conditions(nInd, currMarket, tInfo, candles):
     ## Setup any buy conditions here ##
 
-    ma9 = nInd['MA9']
-    ma21 = nInd['MA21']
-    bb = nInd['BB']
-    rsi = nInd['RSI']
     macd = nInd['MACD']
-    ichi = nInd['Ichimoku']
 
     lastPrice = currMarket['lastPrice']
     askPrice = currMarket['askPrice']

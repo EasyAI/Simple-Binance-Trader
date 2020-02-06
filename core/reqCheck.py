@@ -1,6 +1,11 @@
 #! /usr/bin/env python3
 
+'''
+reqCheck
+
+'''
 import os
+import time
 import logging
 import requests
 
@@ -10,37 +15,40 @@ def data_check(data, urlQuery):
 
     logMessage = 'data: {0}, query: {1}'.format(data, urlQuery)
 
-    if 'error' in data:
-        error = data['error']['message']
+    if 'fatal' in data:
+        error = data['fatal']['message']
         errorMsg = 'error: {0}, query: {1}'.format(error, urlQuery)
         logging.warning(errorMsg)
-        return(False)
+        return(0, '')
 
     elif data == None:
         logging.warning('Data was empty.')
-        return(False)
+        return(0, '')
 
     elif 'code' in data:
-        if str(data['code']) in ['-1013', '-1021']:
-            '''
-            code -1013 : Invalid quantity for placing order.
-            code -1021 : Request outside of the recive window.
-            '''
-            logging.warning(logMessage)
-            pass
-
-        elif str(data['code']) in ['-1003']:
-            '''
-            code -1003 : Too many requests (>1200 per min).
-            '''
+        if str(data['code']) == '-1003':
+            ## code -1003 : Too many requests (>1200 per min).
             logging.warning(logMessage)
             time.sleep(30)
-
+            return(0, '')
+        elif str(data['code']) == '-1013':
+            ## code -1013 : Invalid quantity for placing order.
+            logging.warning(logMessage)
+            return(-1, str(data['code']))
+        elif str(data['code']) == '-1021':
+            ## code -1021 : Request outside of the recive window.
+            logging.warning(logMessage)
+            time.sleep(4)
+            return(0, '')
+        elif str(data['code']) == '-2010':
+            ## code -2010 : Account has insufficient balance for request.
+            logging.warning('[{0}] msg: {2}'.format(logMessage, data['code'], data['msg']))
+            return(-1, str(data['code']))
         else:
-            logging.warning('NEW ERROR: [{0}]'.format(logMessage))
+            logging.warning('NEW ERROR: [{0}] code: {1}, msg: {2}'.format(logMessage, data['code'], data['msg']))
+            return(-1, str(data['code']))
 
-        return(False)
-    return(True)
+    return(1, '')
 
 
 def test_ping():

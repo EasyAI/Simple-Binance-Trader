@@ -509,13 +509,13 @@ def get_Ichimoku(candles, tS_type=9, kS_type=26, sSB_type=52, dataType="numpy"):
 		"Chikou":float("{0:.8f}".format(closePrices[i]))}) for i in range(span)]
 
 
-def get_CCI(rCandles, source, period=20, constant=0.015, dataType="numpy"):
+def get_CCI(rCandles, source, period=14, constant=0.015, dataType="numpy"):
 	"""
 	source is refering too where the typical price will come from. (high, low, close, all)
 
 	CCI = (Typical Price  -  20-period SMA of TP) / (.015 x Mean Deviation)
 
-	Typical Price (TP) = (High + Low + Close)/3
+	Typical Price (TP) = Close
 
 	Constant = .015
 
@@ -539,7 +539,7 @@ def get_CCI(rCandles, source, period=20, constant=0.015, dataType="numpy"):
 	elif source == 'close':
 		typicalPrice = np.array([candle[4] for candle in candles])
 	elif source == 'all':
-		typicalPrice = np.array([((candle[2] + candle[3] + candle[4]) / 3) for candle in candles])
+		typicalPrice = np.array([((candle[4]) / 1) for candle in candles])
 	else:
 		raise ValueError('Invalid CCI source. Make sure the CCI source is either; high, low, close, all')
 

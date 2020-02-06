@@ -1,7 +1,12 @@
 #! /usr/bin/env python3
 
+'''
+socketAPI
+
+'''
 import time
 import json
+import hashlib
 import logging
 import websocket
 import threading
@@ -13,48 +18,66 @@ SOCKET_BASE = 'wss://stream.binance.com:9443'
 
 class BinanceSOCK:
 
-    def __init__(self, query):
+    def __init__(self):
         '''
         Setup the connection and setup data containers and management variables for the socket.
         '''
-        streams = []
-        self.forceClose = False
         self.socketRunning = False
 
-        self.socketBuffer = {'depth':{'bids':[], 'asks':[]}, 'candle':{}}
+        self.socketBuffer = {}
 
-        if query[-1] == '/':
-            query = query[:-1]
+        self.ws = None
+        
 
-        self.destURL = '{0}/stream?streams={1}'.format(SOCKET_BASE, query)
-
-
-    def start(self):
+    def start(self, markets, query):
         '''
         This is used to start the socket.
         '''
-        if not(self.socketRunning):
-            logging.info('SOCKET: Setting up socket connection.')
-            self.create_socket()
-            logging.info('SOCKET: Setup socket.')
 
-            ## -------------------------------------------------------------- ##
-            # This block is used to test connectivity to the socket.
-            conn_timeout = 5
-            while not self.ws.sock or not self.ws.sock.connected and conn_timeout:
-                time.sleep(1)
-                conn_timeout -= 1
+        if self.ws != None and self.socketRunning:
+            self.stop()
 
-                if not conn_timeout:
-                    # If the timeout limit is reached then the websocket is force closed.
-                    self.ws.close()
-                    raise websocket.WebSocketTimeoutException('Couldn\'t connect to WS! Exiting.')
-            ## -------------------------------------------------------------- ##
+        ## -------------------------------------------------------------- ##
+        ## Here the socket buffer is setup to store the data for each symbol.
+        logging.debug('SOCKET: Setting up buffer.')
+        socketBuffer = {}
+        for market in markets:
+            socketBuffer.update({market:{'depth':{'bids':[], 'asks':[]}, 'candle':{}}})
+        self.socketBuffer = socketBuffer
 
-            self.socketRunning = True
-            logging.info('SOCKET: Sucessfully created socket connection.')
+        ## -------------------------------------------------------------- ##
+        ## Here the sockets URL is set so it can be connected to.
+        logging.debug('SOCKET: Setting up socket stream URL.')
+        if query[-1] == '/':
+            query = query[:-1]
+        self.destURL = '{0}/stream?streams={1}'.format(SOCKET_BASE, query)
 
-        logging.info('SOCKET: Sucessfully started socket.')
+        ## -------------------------------------------------------------- ##
+        ## Here the 'create_socket' function is called to attempt a connection to the socket.
+        logging.debug('SOCKET: Setting up socket connection.')
+        self.create_socket()
+
+        ## -------------------------------------------------------------- ##
+        # This block is used to test connectivity to the socket.
+        conn_timeout = 5
+        while not self.ws.sock or not self.ws.sock.connected and conn_timeout:
+            time.sleep(5)
+            conn_timeout -= 1
+
+            if not conn_timeout:
+                ## If the timeout limit is reached then the websocket is force closed.
+                self.ws.close()
+                raise websocket.WebSocketTimeoutException('Couldn\'t connect to WS! Exiting.')
+
+        self.socketRunning = True
+        logging.info('SOCKET: Sucessfully established the socket.')
+
+
+    def stop(self):
+        self.ws.close()
+
+        while self.socketRunning:
+            time.sleep(0.2)
 
 
     def get_buffer(self):
@@ -82,7 +105,7 @@ class BinanceSOCK:
         '''
         This is called to manually open the websocket connection.
         '''
-        logging.info('SOCKET: Websocket Opened.')
+        logging.debug('SOCKET: Websocket Opened.')
 
 
     def _on_Message(self, message):
@@ -91,20 +114,32 @@ class BinanceSOCK:
         '''
         data = json.loads(message)
 
-        if data['stream'][data['stream'].index('@')+1:-2] == 'depth':
-            self.socketBuffer['depth']['bids'] = data['data']['bids']
-            self.socketBuffer['depth']['asks'] = data['data']['asks']
-        else:
-            cData = data['data']['k']
-            candle = {
-                'time':int(cData['t']), 
-                'open':float(cData['o']),
-                'high':float(cData['h']),
-                'low':float(cData['l']),
-                'close':float(cData['c']),
-                'volume':float(cData['v'])}
+        try:
+            atIndex = data['stream'].index('@')
+        except Exception as e:
+            logging.warning('SOCKET: @ index find: {0}'.format(e))
 
-            self.socketBuffer['candle'] = candle
+        try:
+            market = data['stream'][:atIndex]
+        except Exception as e:
+            logging.warning('SOCKET: market slicing: {0}'.format(e))
+
+        if market in self.socketBuffer:
+            if data['stream'][atIndex+1:atIndex+6] == 'depth':
+                if data['data']['bids'] != []:
+                    self.socketBuffer[market]['depth']['bids'] = data['data']['bids']
+                    self.socketBuffer[market]['depth']['asks'] = data['data']['asks']
+            else:
+                cData = data['data']['k']
+                candle = {
+                    'time':int(cData['t']), 
+                    'open':float(cData['o']),
+                    'high':float(cData['h']),
+                    'low':float(cData['l']),
+                    'close':float(cData['c']),
+                    'volume':float(cData['v'])}
+
+                self.socketBuffer[market]['candle'] = candle
 
 
     def _on_Error(self, error):
@@ -112,8 +147,6 @@ class BinanceSOCK:
         This is called when the socket recives an connection based error.
         '''
         logging.warning('SOCKET: {0}'.format(error))
-        if self.socketRunning:
-            time.sleep(10)
 
 
     def _on_Close(self):
