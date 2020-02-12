@@ -118,11 +118,10 @@ class BotCore():
         rData = {}
 
         for index, market in enumerate(self.marketsInfo):
-            if self.marketsInfo[index]['object']:
-                tObj = self.marketsInfo[index]['object']
-                symbol = self.marketsInfo[index]['symbol']
+            tObj = self.marketsInfo[index]['object']
+            symbol = self.marketsInfo[index]['symbol']
 
-                rData.update({symbol: {'status':market['status'], 'object':tObj.get_trader_data()}})
+            rData.update({symbol: {'status':market['status'], 'object':tObj.get_trader_data()}})
 
         return(rData)
 

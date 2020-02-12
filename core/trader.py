@@ -371,6 +371,7 @@ class Trader(object):
                     return
 
             elif self.botRunType == 'test':
+                orderInfo = True
                 code = 0
             
             ## Check the status of the order code.
@@ -465,7 +466,7 @@ class Trader(object):
         return({'code':code, 'msg':message})
 
 
-    def _code_manager(self, code, side=None, **OPargs):
+    def _code_manager(self, code, side=None, **kwargs):
         '''
         CODES:
         0 - Order have been placed.
@@ -478,13 +479,13 @@ class Trader(object):
         if code == 0:
             ## Order has been placed.
             if side == 'BUY':
-                self.TradesInformation['orderType']['B'] = OPargs['orderType']
+                self.TradesInformation['orderType']['B'] = kwargs['orderType']
                 self.TradesInformation['orderStatus']['B'] = 'Placed'
-                self.TradesInformation['buyPrice'] = OPargs['price']
+                self.TradesInformation['buyPrice'] = kwargs['price']
             elif side == 'SELL':
-                self.TradesInformation['orderType']['S'] = OPargs['orderType']
+                self.TradesInformation['orderType']['S'] = kwargs['orderType']
                 self.TradesInformation['orderStatus']['S'] = 'Placed'
-                self.TradesInformation['sellPrice'] = OPargs['price']
+                self.TradesInformation['sellPrice'] = kwargs['price']
 
         elif code == 1:
             ## Not enough to place a order on the market.

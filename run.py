@@ -142,21 +142,13 @@ def paint_scrn(traderData):
 
     for market in traderData:
 
-        if not traderData[market]['status'] or traderData[market]['status'] == 'OT':
-            continue
-
         tObj = traderData[market]['object']
 
         rT = tObj['runtime']
         cM = tObj['currentMarket']
         tI = tObj['tradesInfo']
-        ind = tObj['indicators']
 
-        if ind == {}:
-            continue
-
-        print('[{0}] market: {1} | state: {2} | overall: {3:.8f} | last update: {4} | trades {5}'.format(
-            traderData[market]['status'],
+        print('market: {0} | state: {1} | overall: {2:.8f} | last update: {3} | trades {4}'.format(
             rT['symbol'],
             rT['state'],
             tI['overall'],
@@ -177,10 +169,6 @@ def paint_scrn(traderData):
                 tI['buyPrice'],
                 tI['sellPrice'],
                 cM['lastPrice']))
-
-        if 'CCI' in ind:
-            CCI = ind['CCI']
-            print('CCI[0]: {0} | max(CCI[1:25])<0: {1}\n'.format(CCI[0], (max(CCI[1:25]) < 0)))
 
 
 if __name__ == '__main__':
