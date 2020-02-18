@@ -185,14 +185,13 @@ class Trader(object):
 
         ## <----------------------------------| INITIALIZE INDICATORS |-----------------------------------> ##
         candles = self.candles
-        normalClose = candles['close']
-        normalOpen = candles['open']
 
         if 'MACD' in self.normalIndicators:
             MACD = self.normalIndicators['MACD'][:]
 
+        ## [INDICATOR] ----->
         try:
-            self.normalIndicators['MACD'] = TI.get_MACD(normalOpen, signal=14)
+            self.normalIndicators['MACD'] = TI.get_MACD(candles['close'], signal=14)
         except:
             self.normalIndicators['MACD'] = MACD[:]
 
