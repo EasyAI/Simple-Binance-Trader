@@ -25,7 +25,8 @@ def sell_conditions(nInd, currMarket, tInfo, candles):
     bidPrice = currMarket['bidPrice']
 
     ## Simple MACD sell signal.
-    if macd[0]['macd'] < macd[0]['signal']:
+
+    if macd[0]['macd'] < macd[1]['macd']:
         description = 'Normal signal sell.'
         price = currMarket['askPrice']
         return({'place':True, 'description':description, 'tType':'signal', 'price':price})

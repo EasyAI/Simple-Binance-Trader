@@ -21,7 +21,16 @@ settings = ("{0}/settings".format(cwd))
 
 ## Setting up the logger.
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+
+formatter = logging.Formatter('%(asctime)s:%(name)s:%(message)s')
+
+file_handler = logging.FileHandler('runtimeLogs.log')
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(formatter)
+
+logger.addHandler(file_handler)
+
+##
 
 ## Runtime management varaiables.
 updaterThreadActive = False
@@ -45,10 +54,10 @@ with open('settings', 'r') as file:
         elif key == 'markets':
             ## API private key.
 
-            data.replace(' ', '')
+            data = data.replace(' ', '')
 
             if ',' in data:
-                 data.split(',')
+                data = data.split(',')
             else:
                 data = [data]
 
@@ -60,9 +69,9 @@ with open('settings', 'r') as file:
 
         elif key == 'runType':
             ## The type of run (real or not).
-            runType = data
+            runType = data.upper()
 
-            if data != 'real':
+            if data.upper() != 'REAL':
                 publicKey = None
                 privateKey = None
 
@@ -74,6 +83,15 @@ with open('settings', 'r') as file:
             ## Maxcurreny per trader
             MAC = float(data)
 
+        elif key == 'debugLevel':
+            ## Set the debug level during runtime.
+            if data == 'warning':
+                logger.setLevel(logging.WARNING)
+            if data == 'debug':
+                logger.setLevel(logging.DEBUG)
+            else:
+                logger.setLevel(logging.INFO)
+
 
 def main():
     '''
@@ -83,20 +101,12 @@ def main():
     -> Start the botcore.
     '''
     global bot_core
-    logging.info('start.')
 
     print('Starting in {0} mode.'.format(runType.upper()))
     
     ## <----------------------------------| RUNTIME CHECKS |-----------------------------------> ##
-    bot_core = botCore.BotCore(runType, MAC, mainInterval, markets_trading, publicKey, privateKey)
+    bot_core = botCore.BotCore(runType, MAC, markets_trading, mainInterval, publicKey, privateKey)
     logging.info('Created bot core object.')
-
-    ## <----------------------------------| RUNTIME CHECKS |-----------------------------------> ##
-    ## Create the thread that send interval updates to the web UI.
-    updaterThread = threading.Thread(target=feed_updater)
-    updaterThread.start()
-
-    logging.info('Created updater thread.')
 
     ## <----------------------------------| RUNTIME CHECKS |-----------------------------------> ##
     if bot_core != None:
@@ -105,70 +115,6 @@ def main():
         return
 
     logging.error('Unable to start collecting.')
-
-
-def feed_updater():
-
-    while True:
-        totalTrades = 0
-        totalOutcomes = 0
-        traders = bot_core.get_trader_data()
-
-        if traders != {}:
-            for market in traders:
-                if traders[market]['object']:
-                    tI = traders[market]['object']['tradesInfo']
-
-                    totalTrades += tI['#Trades']
-                    totalOutcomes += tI['overall']
-
-            detailString = '|#======#| Calls: {0} | P:{1},L:{2}/{3} | Total Trades: {4} | Overall: {5:.8f} |#======#|'.format(
-                                                                                                    bot_core.RESTapi.callCounter, 
-                                                                                                    bot_core.passiveTraders,
-                                                                                                    bot_core.liveTraders, 
-                                                                                                    bot_core.maxLiveTraders,
-                                                                                                    totalTrades,
-                                                                                                    totalOutcomes)
-            print('\n|#{0}#|'.format('='*(len(detailString)-4)))
-            print(detailString)
-            print('|#{0}#|'.format('='*(len(detailString)-4)))
-
-            paint_scrn(traders)
-
-        time.sleep(20)
-
-
-def paint_scrn(traderData):
-
-    for market in traderData:
-
-        tObj = traderData[market]['object']
-
-        rT = tObj['runtime']
-        cM = tObj['currentMarket']
-        tI = tObj['tradesInfo']
-
-        print('market: {0} | state: {1} | overall: {2:.8f} | last update: {3} | trades {4}'.format(
-            rT['symbol'],
-            rT['state'],
-            tI['overall'],
-            rT['time'],
-            tI['#Trades']))
-        
-        if tI['orderType']['S'] == None:
-            print('BUY| type: {0} | status: {1} | Bprice {2:.8f} | Sprice {3:.8f} | last: {4:.8f}'.format(
-                tI['orderType']['B'],
-                tI['orderStatus']['B'],
-                tI['buyPrice'],
-                tI['sellPrice'],
-                cM['lastPrice']))
-        else:
-            print('SELL| type: {0} | status: {1} | Bprice {2:.8f} | Sprice {3:.8f} | last: {4:.8f}'.format(
-                tI['orderType']['S'],
-                tI['orderStatus']['S'],
-                tI['buyPrice'],
-                tI['sellPrice'],
-                cM['lastPrice']))
 
 
 if __name__ == '__main__':
