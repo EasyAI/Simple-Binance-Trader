@@ -29,7 +29,7 @@ def sell_conditions(nInd, currMarket, tInfo, candles):
     if macd[0]['macd'] < macd[1]['macd']:
         description = 'Normal signal sell.'
         price = currMarket['askPrice']
-        return({'place':True, 'description':description, 'tType':'signal', 'price':price})
+        return({'place':True, 'description':description, 'tType':'SIGNAL', 'price':price})
 
     return({'place':False})
 
@@ -47,6 +47,6 @@ def buy_conditions(nInd, currMarket, tInfo, candles):
     if macd[0]['hist'] > 0 and macd[0]['macd'] > macd[1]['macd']:
         description = 'Normal signal buy.'
         price = currMarket['bidPrice']
-        return({'place':True, 'description':description, 'tType':'signal', 'price':price})
+        return({'place':True, 'description':description, 'tType':'SIGNAL', 'price':price})
 
     return({'place':False})
