@@ -32,35 +32,37 @@ def settings_reader():
 
     with open('settings', 'r') as file:
         for line in file.readlines():
-            key, data = line.split('=')
 
-            if data != None:
-                data = data.replace('\n', '')
+            if '=' in line:
+                key, data = line.split('=')
 
-            if key == 'publicKey':
-                settings_file_data.update({'publicKey':data})
+                if data != None:
+                    data = data.replace('\n', '')
 
-            elif key == 'privateKey':
-                settings_file_data.update({'privateKey':data})
+                if key == 'publicKey':
+                    settings_file_data.update({'publicKey':data})
 
-            elif key == 'markets':
-                settings_file_data.update({'markets':data.split(',') if ',' in data else [data]})
+                elif key == 'privateKey':
+                    settings_file_data.update({'privateKey':data})
 
-            elif key == 'mainInterval':
-                settings_file_data.update({'mainInterval':data})
+                elif key == 'markets':
+                    settings_file_data.update({'markets':data.split(',') if ',' in data else [data]})
 
-            elif key == 'traderCurrency':
-                settings_file_data.update({'traderCurrency':data})
+                elif key == 'mainInterval':
+                    settings_file_data.update({'mainInterval':data})
 
-            elif key == 'host_ip':
-                default_ip = '127.0.0.1'
-                t_ip = default_ip if data == '' else data
-                settings_file_data.update({'host_ip':t_ip})
+                elif key == 'traderCurrency':
+                    settings_file_data.update({'traderCurrency':data})
 
-            elif key == 'host_port':
-                default_port = 5000
-                t_port = default_port if data == '' else int(data)
-                settings_file_data.update({'host_port':t_port})
+                elif key == 'host_ip':
+                    default_ip = '127.0.0.1'
+                    t_ip = default_ip if data == '' else data
+                    settings_file_data.update({'host_ip':t_ip})
+
+                elif key == 'host_port':
+                    default_port = 5000
+                    t_port = default_port if data == '' else int(data)
+                    settings_file_data.update({'host_port':t_port})
 
     return(settings_file_data)
 
