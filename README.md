@@ -2,6 +2,7 @@
 
 # Disclaimer
 I am not responsible for the trades you make with the script, this script has not been exstensivly tested on live trades.
+
 NOTE: The current strtergy is also very weak and will mostlikley return only losses therefore I recomend you create your work or use some which would work. However the trader currently also does not support simulated trades and only support live trading, simulated trades should be added in the future so you may need to wait until then to use this to test stratergies.
 
 ## Description
