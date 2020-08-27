@@ -2,7 +2,7 @@
 
 # Disclaimer
 I am not responsible for the trades you make with the script, this script has not been exstensivly tested on live trades.
-NOTE: Currently only live trades are setup, I'm working on adding a simulation mode back into the updated script.
+NOTE: The current strtergy is also very weak and will mostlikley return only losses therefore I recomend you create your work or use some which would work. However the trader currently also does not support simulated trades and only support live trading, simulated trades should be added in the future so you may need to wait until then to use this to test stratergies.
 
 ## Description
 This is a simple binance trader that uses the REST api and sockets to allow automation or manipulation of account detail/data. The script which in the default configuration uses a basic MACD trading setup to trade. The script however is very customisable and you'll be able to configure it as you with via the help of the document in the usage section.
