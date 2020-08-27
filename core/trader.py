@@ -227,7 +227,7 @@ class BaseTrader(object):
             candles = self.socket_api.get_live_candles()[sock_symbol]
             books_data = self.socket_api.get_live_depths()[sock_symbol]
             indicators = TC.technical_indicators(candles)
-            self.custom_conditional_data, self.trade_information = TC.other_conditions(self.custom_conditional_data, self.trade_information)
+            self.custom_conditional_data, self.trade_information = TC.other_conditions(self.custom_conditional_data, self.trade_information, indicators)
             logging.debug('[BaseTrader] Collected trader data from socket. [{0}]'.format(self.print_pair))
 
             socket_buffer_global = self.socket_api.socketBuffer
