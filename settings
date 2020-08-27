@@ -1,6 +1,0 @@
-publicKey=
-privateKey=
-runType=test
-mainInterval=5m
-traderCurrency=0.0013
-markets=BTC-LTC, BTC-ETH,BTC-NEO
