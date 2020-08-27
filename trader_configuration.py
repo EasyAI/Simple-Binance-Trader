@@ -21,8 +21,8 @@ def technical_indicators(candles):
     return(indicators)
 
 
-def other_conditions(custom_conditional_data, trade_information):
-    custom_conditional_data = {}
+def other_conditions(custom_conditional_data, trade_information, indicators):
+    custom_conditional_data = custom_conditional_data
     can_order = True
 
 
