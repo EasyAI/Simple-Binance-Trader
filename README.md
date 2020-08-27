@@ -29,6 +29,8 @@ This is a simple binance trader that uses the REST api and sockets to allow auto
 - "host_ip" = Host IP can be set for the webserver to access the trader.
 - "host_port" = Host port can be set for the webserver to access the trader.
 
+NOTE: If you wish to not host the web app locally you need to also edit the code/static/js/script.js ip address a the top of the file
+
 ## Usage
 I recommend setting this all up within a virtual python enviornment:
 First get the base modules:
@@ -36,8 +38,7 @@ First get the base modules:
 
 Secondly get the required techinal indicators module adn binance api.
  - https://github.com/EasyAI/binance_api, This is the binance API that the trader uses.
- - https://github.com/EasyAI/Python-Charting-Indicators, This contains the logic to calculate technical indicators. (only the file technical_indicators.py is needed
-)
+ - https://github.com/EasyAI/Python-Charting-Indicators, This contains the logic to calculate technical indicators. (only the file technical_indicators.py is needed)
 
 Move them into the site-packages folder.
 Finally navigate to the trader directory.
