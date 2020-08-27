@@ -1,0 +1,8 @@
+publicKey=
+privateKey=
+runType=real
+mainInterval=15m
+traderCurrency=0.0015
+markets=BTC-LTC,BTC-ETH
+host_ip=
+host_port=

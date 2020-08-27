@@ -1,0 +1,24 @@
+<html>
+    <head>
+        <title>Trader Control Panel</title>
+        <meta charst="en">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="X-UA-Compatible" content="ie=edge">
+
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
+        <script src="//cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.js"></script>
+
+        <!-- This is used to load the modules that I made and will be using. -->
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+        <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+        
+    </head>
+    <header>
+        <h1>Binance Trader Control Panel</h1>
+    </header>
+    <body>
+        {% block content %}{% endblock content %}
+    </body>
+    <footer>
+    </footer>
+</html>
