@@ -36,7 +36,8 @@ First get the base modules:
 
 Secondly get the required techinal indicators module adn binance api.
  - https://github.com/EasyAI/binance_api, This is the binance API that the trader uses.
- - https://github.com/EasyAI/Python-Charting-Indicators, This contains the logic to calculate technical indicators.
+ - https://github.com/EasyAI/Python-Charting-Indicators, This contains the logic to calculate technical indicators. (only the file technical_indicators.py is needed
+)
 
 Move them into the site-packages folder.
 Finally navigate to the trader directory.
