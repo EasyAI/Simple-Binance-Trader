@@ -18,6 +18,7 @@ def check_file_structure(order_logs, runtime_logs):
     
     os.makedirs(ol_basePath, exist_ok=True)
     os.makedirs(rl_basePath, exist_ok=True)
+    os.makedirs(CACHE_DIR, exist_ok=True)
 
     if not(exists(order_logs)):
         open(order_logs, 'w').close()
