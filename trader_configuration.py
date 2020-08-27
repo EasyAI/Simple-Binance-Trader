@@ -43,7 +43,7 @@ def sell_conditions(custom_conditional_data, trade_information, indicators, pric
     ## Set the indicators used to test the conditions:
     macd = indicators['MACD']
 
-    ## Logic for testing conditions.
+    ## Logic for SELL conditions.
     if  macd[0]['macd'] < macd[0]['signal']:
         orderType = 'SIGNAL'
         side = 'SELL'
@@ -61,14 +61,18 @@ def sell_conditions(custom_conditional_data, trade_information, indicators, pric
 
 
 def buy_conditions(custom_conditional_data, trade_information, indicators, prices, candles):
+    '''
+    The current order types that are supported are
+    limit orders = LIMIT
+    market orders = MARKET
+    '''
+    price = side = description = ptype = None
+    orderType = 'WAIT'
+
+    ## Set the indicators used to test the conditions:
     macd = indicators['MACD']
 
-    price = ''
-    orderType = 'WAIT'
-    side = ''
-    description = ''
-    ptype = ''
-
+    ## Logic for BUY conditions.
     if macd[0]['hist'] > 0 and macd[0]['macd'] > macd[1]['macd'] and macd[0]['macd'] > macd[0]['signal']:
         orderType = 'SIGNAL'
         side = 'BUY'
