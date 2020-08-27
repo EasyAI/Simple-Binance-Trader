@@ -30,13 +30,17 @@ This is a simple binance trader that uses the REST api and sockets to allow auto
 - "host_port" = Host port can be set for the webserver to access the trader.
 
 ## Usage
-To quickly install all the required modules use 'pip3 install -r requirements', this should install the modules for you.
-NOTE: you will also need to get the following modules:
+I recommend setting this all up within a virtual python enviornment:
+First get the base modules:
+ - To quickly install all the required modules use 'pip3 install -r requirements'.
+Secondly get the required techinal indicators module adn binance api.
  - https://github.com/EasyAI/binance_api, This is the binance API that the trader uses.
  - https://github.com/EasyAI/Python-Charting-Indicators, This contains the logic to calculate technical indicators.
+Move them into the site-packages folder.
+Finally navigate to the trader directory.
 
 To set up the bot and for any further detail please refer to the google doc link below:
-TODO: https://docs.google.com/document/d/1VUx_1O5kQQxk0HfqqA8WyQpk6EbbnXcezAdqXkOMklo/edit?usp=sharing
+https://docs.google.com/document/d/1VUx_1O5kQQxk0HfqqA8WyQpk6EbbnXcezAdqXkOMklo/edit?usp=sharing
 
 ### Contact
 Please if you find any bugs or issues contact me so I can improve.
