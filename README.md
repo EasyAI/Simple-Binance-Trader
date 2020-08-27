@@ -33,9 +33,11 @@ This is a simple binance trader that uses the REST api and sockets to allow auto
 I recommend setting this all up within a virtual python enviornment:
 First get the base modules:
  - To quickly install all the required modules use 'pip3 install -r requirements'.
+
 Secondly get the required techinal indicators module adn binance api.
  - https://github.com/EasyAI/binance_api, This is the binance API that the trader uses.
  - https://github.com/EasyAI/Python-Charting-Indicators, This contains the logic to calculate technical indicators.
+
 Move them into the site-packages folder.
 Finally navigate to the trader directory.
 
