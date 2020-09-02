@@ -11,15 +11,20 @@ ORDER_LOGS_PATH = '{0}/logs/order_log.log'.format(cwd)
 
 handler.check_file_structure(ORDER_LOGS_PATH, RUNTIME_LOGS_PATH)
 
+log_format = '%(asctime)s:%(name)s:%(message)s'
+
+logging.basicConfig(
+    format=log_format,
+    level=logging.INFO)
+
 logger = logging.getLogger()
 
-formatter = logging.Formatter('%(asctime)s:%(name)s:%(message)s')
 
-file_handler = logging.FileHandler(RUNTIME_LOGS_PATH)
-file_handler.setLevel(logging.INFO)
-file_handler.setFormatter(formatter)
+#file_handler = logging.FileHandler(RUNTIME_LOGS_PATH)
+#file_handler.setLevel(logging.INFO)
+#file_handler.setFormatter(formatter)
 
-logger.addHandler(file_handler)
+#logger.addHandler(file_handler)
 
 
 def main():
@@ -28,7 +33,8 @@ def main():
     botCore.start(
         settings['traderCurrency'], 
         settings['markets'], 
-        settings['mainInterval'], 
+        settings['mainInterval'],
+        settings['runType'],
         settings['publicKey'], 
         settings['privateKey'], 
         settings['host_ip'],

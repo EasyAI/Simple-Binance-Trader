@@ -62,66 +62,69 @@ def control_panel():
 @APP.route('/rest-api/v1/add_trader', methods=['POST'])
 def add_trader():
     print(request.get_json())
-
-    return({'call':True})
+    return(json.dumps({'call':True}))
 
 
 @APP.route('/rest-api/v1/trader_update', methods=['POST'])
 def update_trader():
     post_data = request.get_json()
-
     print(request.get_json())
 
-    current_market = None
+    current_trader = None
     for trader in BOT_CORE.trader_objects:
         if trader.symbol == post_data['market']:
-            current_market = trader
+            current_trader = trader
             break
 
-    if current_market == None:
-        return({'call':False})
+    print(current_trader)
+    if current_trader == None:
+        return(json.dumps({'call':False}))
 
     elif post_data['action'] == 'remove':
         trader.stop()
+    elif post_data['action'] == 'start':
+        if trader.runtime_state == 'FORCE_PAUSE':
+            trader.runtime_state = 'RUN'
+
+    elif post_data['action'] == 'pause':
+        if trader.runtime_state == 'RUN':
+            trader.runtime_state = 'FORCE_PAUSE'
 
     else:
-        return({'call':False})
+        return(json.dumps({'call':False}))
 
-    return({'call':True})
+    return(json.dumps({'call':True}))
 
 
 @APP.route('/rest-api/v1/get_trader_data', methods=['GET'])
 def get_trader_data():
     print(request.get_json())
-    return({'call':True, 'data':BOT_CORE.get_trader_data()})
+    return(json.dumps({'call':True, 'data':BOT_CORE.get_trader_data()}))
 
 
 @APP.route('/rest-api/v1/test', methods=['GET'])
 def test_rest_call():
-    return({'call':True,'data':'Hello World'})
+    return(json.dumps({'call':True,'data':'Hello World'}))
 
 
 def web_updater():
     lastHash = None
 
     while True:
-
         if BOT_CORE.coreState == 'RUN':
-
             traderData = BOT_CORE.get_trader_data()
-
             currHash = hashlib.md5(str(traderData).encode())
 
             if lastHash != currHash:
                 lastHash = currHash
                 SOCKET_IO.emit('current_traders_data', {'data':traderData})
 
-        time.sleep(.5)
+        time.sleep(.25)
 
 
 class BotCore():
 
-    def __init__(self, MAC, trading_markets, candle_Interval, publicKey, privateKey, order_log_path):
+    def __init__(self, MAC, trading_markets, candle_Interval, run_type, publicKey, privateKey, order_log_path):
         ''' 
         
         '''
@@ -130,6 +133,7 @@ class BotCore():
         self.rest_api = rest_master.Binance_REST(publicKey, privateKey)
         self.order_log_path = order_log_path
 
+        self.run_type = run_type
 
         logging.info('[BotCore] Initilizing BinancesSOCK object.')
         self.socket_api = socket_master.Binance_SOCK()
@@ -204,19 +208,22 @@ class BotCore():
                                     self.socket_api,
                                     self.rest_api))
 
-        user_info = self.rest_api.get_account('SPOT')
-        wallet_balances = user_info['balances']
-        current_tokens = {}
-        
-        for balance in wallet_balances:
-            total_balance = (float(balance['free']) + float(balance['locked']))
-            if total_balance > 0:
-                current_tokens.update({balance['asset']:[
-                                    float(balance['free']),
-                                    float(balance['locked'])]})
+        if self.run_type == 'REAL':
+            user_info = self.rest_api.get_account('SPOT')
+            wallet_balances = user_info['balances']
+            current_tokens = {}
+            
+            for balance in wallet_balances:
+                total_balance = (float(balance['free']) + float(balance['locked']))
+                if total_balance > 0:
+                    current_tokens.update({balance['asset']:[
+                                        float(balance['free']),
+                                        float(balance['locked'])]})
 
-
-        open_orders = self.rest_api.get_open_orders('SPOT')
+            open_orders = self.rest_api.get_open_orders('SPOT')
+        else:
+            current_tokens = {'BTC':[float(self.MAC), 0.0]}
+            open_orders = None
 
         logging.info('[BotCore] Starting the trader objects.')
         for trader_ in self.trader_objects:
@@ -237,7 +244,7 @@ class BotCore():
             if trader_.base_asset in current_tokens:
                 wallet_pair.update({trader_.base_asset:current_tokens[trader_.base_asset]})
 
-            trader_.start(self.MAC, wallet_pair, openOrder)
+            trader_.start(self.MAC, wallet_pair, self.run_type, openOrder)
 
         logging.info('[BotCore] BotCore successfully started.')
         self.coreState = 'RUN'
@@ -275,16 +282,17 @@ class BotCore():
         return(rData)
 
 
-def start(mac, markets, interval, publicKey, privateKey, host_ip, host_port, order_log_path):
+def start(mac, markets, interval, run_type, publicKey, privateKey, host_ip, host_port, order_log_path):
     '''
     Intilize the bot core object and also the flask object
     '''
     global BOT_CORE
 
     if BOT_CORE == None:
-        BOT_CORE = BotCore(mac, markets, interval, publicKey, privateKey, order_log_path)
+        BOT_CORE = BotCore(mac, markets, interval, run_type, publicKey, privateKey, order_log_path)
         BOT_CORE.start()
 
+    logging.info('[BotCore] Starting traders in {0} mode.'.format(run_type))
     log = logging.getLogger('werkzeug')
     log.setLevel(logging.ERROR)
 

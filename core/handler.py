@@ -39,6 +39,9 @@ def settings_reader():
                 if data != None:
                     data = data.replace('\n', '')
 
+                if key == 'runType':
+                    settings_file_data.update({'runType':data.upper()})
+
                 if key == 'publicKey':
                     settings_file_data.update({'publicKey':data})
 

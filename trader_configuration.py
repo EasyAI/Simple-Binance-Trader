@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 
+import logging
 import numpy as np
 import technical_indicators as TI
 
@@ -17,20 +18,22 @@ def technical_indicators(candles):
     close_prices    = [candle[4] for candle in candles]
     
     indicators.update({'MACD':TI.get_MACD(close_prices)})
+    indicators.update({'MFI':TI.get_MFI(candles)})
+    indicators.update({'ADX':TI.get_ADX_DI(candles)})
+    indicators.update({'MA_50':TI.get_SMA(close_prices, 50)})
 
     return(indicators)
 
 
-def other_conditions(custom_conditional_data, trade_information, indicators):
+def other_conditions(custom_conditional_data, trade_information, indicators, symbol, btc_base):
     custom_conditional_data = custom_conditional_data
     can_order = True
-
 
     trade_information.update({'canOrder':can_order})
     return(custom_conditional_data, trade_information)
 
 
-def sell_conditions(custom_conditional_data, trade_information, indicators, prices, candles):
+def sell_conditions(custom_conditional_data, trade_information, indicators, prices, candles, symbol, btc_base):
     '''
     The current order types that are supported are
     limit orders = LIMIT
@@ -60,7 +63,7 @@ def sell_conditions(custom_conditional_data, trade_information, indicators, pric
     return({'price':price, 'orderType':orderType, 'side':side, 'description':description, 'ptype':ptype})
 
 
-def buy_conditions(custom_conditional_data, trade_information, indicators, prices, candles):
+def buy_conditions(custom_conditional_data, trade_information, indicators, prices, candles, symbol, btc_base):
     '''
     The current order types that are supported are
     limit orders = LIMIT
