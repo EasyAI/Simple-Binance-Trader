@@ -505,12 +505,12 @@ class BaseTrader(object):
         ## Place Market Order.
         if order:
             order_results = self._place_order(order)
-            #print(order_results, order)
+            print(order_results, order)
 
             if order_results != None:
                 logging.info('[BaseTrader] {0} Order placed for {1}.'.format(self.print_pair, orderType))
                 logging.debug('[BaseTrader] {0} Order placement results:\n{1}'.format(self.print_pair, str(order_results)))
-                #print(updateOrder, orderType, self.trade_information['orderStatus'])
+                print(updateOrder, orderType, self.trade_information['orderStatus'])
 
                 if order['side'] == 'BUY':
                     self.trade_information['orderType']['B'] = orderType
@@ -562,15 +562,15 @@ class BaseTrader(object):
         if quantity:
             quantity = '{0:.{1}f}'.format(quantity, self.rules['LOT_SIZE'])
 
-        if self.btc_base_pair and INVERT_FOR_BTC_FIAT:
-            if order['side'] == 'BUY':
-                side = 'SELL'
-            else:
-                side = 'BUY'
-        else:
-            side = order['side']
-
         if self.run_type == 'REAL':
+            if self.btc_base_pair and INVERT_FOR_BTC_FIAT:
+                if order['side'] == 'BUY':
+                    side = 'SELL'
+                else:
+                    side = 'BUY'
+            else:
+                side = order['side']
+
             if order['ptype'] == 'MARKET':
                 logging.info('[BaseTrader] symbol:{0}, side:{1}, type:{2}, quantity:{3}'.format(
                     self.print_pair, 
@@ -623,10 +623,12 @@ class BaseTrader(object):
             else:
                 price = order['price']
 
-            if side == 'SELL':
-                self.trade_information['buyPrice'] = float(price)
-            elif side == 'BUY':
+            if order['side'] == 'SELL':
                 self.trade_information['sellPrice'] = float(price)
+
+            elif order['side'] == 'BUY':
+                self.trade_information['buyPrice'] = float(price)
+
             self.tester_quantity = float(quantity)
 
             return('PLACED_TEST_ORDER')
