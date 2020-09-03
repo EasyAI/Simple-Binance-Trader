@@ -246,14 +246,16 @@ class BotCore():
 
             trader_.start(self.MAC, wallet_pair, self.run_type, openOrder)
 
+        logging.debug('[BotCore] Starting connection manager thread.')
+        CM_thread = threading.Thread(target=self._connection_manager)
+        CM_thread.start()
+
         logging.info('[BotCore] BotCore successfully started.')
         self.coreState = 'RUN'
 
-        lastUpdateCandles = {}
-
 
     def stop(self):
-        ''' '''
+        '''  '''
         if self.socket_api.socketRunning:
             self.socket_api.ws.close()
 
@@ -261,6 +263,31 @@ class BotCore():
             trader_.stop()
 
         self.coreState = 'STOP'
+
+
+    def _connection_manager(self):
+        '''  '''
+        update_time = 0
+        retryCounter = 1
+
+        while self.coreState != 'STOP':
+            time.sleep(1)
+
+            if self.socket_api.last_data_recv_time != update_time:
+                update_time = self.socket_api.last_data_recv_time
+            else:
+                if (update_time + (15*retryCounter)) < time.time():
+                    retryCounter += 1
+                    try:
+                        print(self.rest_api.test_ping())
+                    except Exception as e:
+                        logging.warning('[BotCore] Connection issue: {0}.'.format(e))
+                        continue
+
+                    logging.info('[BotCore] Connection issue resolved.')
+                    if not(self.socket_api.socketRunning):
+                        logging.info('[BotCore] Attempting socket restart.')
+                        self.socket_api.start()
 
 
     def get_trader_data(self):

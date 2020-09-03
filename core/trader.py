@@ -190,6 +190,7 @@ class BaseTrader(object):
         logging.debug('[BaseTrader] Starting trader main thread {0}.'.format(self.print_pair))
         trader_thread = threading.Thread(target=self._main)
         trader_thread.start()
+        return(True)
 
 
     def stop(self):
@@ -213,6 +214,7 @@ class BaseTrader(object):
             self.rest_api.cancel_open_orders('ALL', self.symbol)
 
         self.runtime_state = 'STOP'
+        return(True)
 
 
     def _main(self):
