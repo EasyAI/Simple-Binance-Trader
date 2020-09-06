@@ -124,7 +124,7 @@ def web_updater():
 
 class BotCore():
 
-    def __init__(self, MAC, trading_markets, candle_Interval, run_type, publicKey, privateKey, order_log_path):
+    def __init__(self, MAC, trading_markets, candle_Interval, run_type, publicKey, privateKey, max_candles, max_depth, order_log_path):
         ''' 
         
         '''
@@ -143,6 +143,9 @@ class BotCore():
             self.socket_api.set_manual_depth_stream(symbol=market, update_speed='1000ms')
 
         self.socket_api.set_userDataStream(self.rest_api)
+
+        self.socket_api.BASE_CANDLE_LIMIT = max_candles
+        self.socket_api.BASE_DEPTH_LIMIT = max_depth
 
         self.socket_api.build_query()
         self.socket_api.set_live_and_historic_combo(self.rest_api)
@@ -309,14 +312,14 @@ class BotCore():
         return(rData)
 
 
-def start(mac, markets, interval, run_type, publicKey, privateKey, host_ip, host_port, order_log_path):
+def start(mac, markets, interval, run_type, publicKey, privateKey, host_ip, host_port, max_candles, max_depth, order_log_path):
     '''
     Intilize the bot core object and also the flask object
     '''
     global BOT_CORE
 
     if BOT_CORE == None:
-        BOT_CORE = BotCore(mac, markets, interval, run_type, publicKey, privateKey, order_log_path)
+        BOT_CORE = BotCore(mac, markets, interval, run_type, publicKey, privateKey, max_candles, max_depth, order_log_path)
         BOT_CORE.start()
 
     logging.info('[BotCore] Starting traders in {0} mode.'.format(run_type))

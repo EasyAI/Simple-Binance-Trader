@@ -39,6 +39,8 @@ def main():
         settings['privateKey'], 
         settings['host_ip'],
         settings['host_port'],
+        settings['max_candles'],
+        settings['max_depth'],
         ORDER_LOGS_PATH)
     
 

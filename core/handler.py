@@ -67,6 +67,16 @@ def settings_reader():
                     t_port = default_port if data == '' else int(data)
                     settings_file_data.update({'host_port':t_port})
 
+                elif key == 'max_candles':
+                    default_candles_range = 500
+                    candle_range = default_candles_range if data == '' else int(data)
+                    settings_file_data.update({'max_candles':candle_range})
+
+                elif key == 'max_depth':
+                    default_depth_range = 50
+                    depth_range = default_depth_range if data == '' else int(data)
+                    settings_file_data.update({'max_depth':depth_range})
+
     return(settings_file_data)
 
 
