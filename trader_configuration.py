@@ -25,15 +25,16 @@ def technical_indicators(candles):
     return(indicators)
 
 
-def other_conditions(custom_conditional_data, trade_information, indicators, symbol, btc_base):
+def other_conditions(custom_conditional_data, trade_information, candles, indicators, symbol, btc_base):
     custom_conditional_data = custom_conditional_data
-    can_order = True
+    can_trade_long = True
+    can_trade_short = True
 
-    trade_information.update({'canOrder':can_order})
+    trade_information.update({'can_order':{'short':can_trade_short,'long':can_trade_long}})
     return(custom_conditional_data, trade_information)
 
 
-def sell_conditions(custom_conditional_data, trade_information, indicators, prices, candles, symbol, btc_base):
+def long_exit_conditions(custom_conditional_data, trade_information, indicators, prices, candles, symbol, btc_base):
     '''
     The current order types that are supported are
     limit orders = LIMIT
@@ -48,22 +49,15 @@ def sell_conditions(custom_conditional_data, trade_information, indicators, pric
 
     ## Logic for SELL conditions.
     if  macd[0]['macd'] < macd[0]['signal']:
-        orderType = 'SIGNAL'
-        side = 'SELL'
-        description = 'Signal buy order'
-        ptype = 'MARKET'
+        return({'order_type':'SIGNAL', 
+            'side':'SELL', 
+            'description':'Long exit signal', 
+            'ptype':'MARKET'})
 
-    elif False:
-        price = ''
-        orderType = 'STOP_LOSS'
-        side = 'SELL'
-        description = 'Signal buy order'
-        ptype = 'STOP_LOSS_LIMIT'
-
-    return({'price':price, 'orderType':orderType, 'side':side, 'description':description, 'ptype':ptype})
+    return({'order_type':'WAIT'})
 
 
-def buy_conditions(custom_conditional_data, trade_information, indicators, prices, candles, symbol, btc_base):
+def long_entry_conditions(custom_conditional_data, trade_information, indicators, prices, candles, symbol, btc_base):
     '''
     The current order types that are supported are
     limit orders = LIMIT
@@ -77,9 +71,17 @@ def buy_conditions(custom_conditional_data, trade_information, indicators, price
 
     ## Logic for BUY conditions.
     if macd[0]['hist'] > 0 and macd[0]['macd'] > macd[1]['macd'] and macd[0]['macd'] > macd[0]['signal']:
-        orderType = 'SIGNAL'
-        side = 'BUY'
-        description = 'Signal buy order'
-        ptype = 'MARKET'
+        return({'order_type':'SIGNAL', 
+            'side':'BUY', 
+            'description':'long entry signal', 
+            'ptype':'MARKET'})
 
-    return({'price':price, 'orderType':orderType, 'side':side, 'description':description, 'ptype':ptype})
+    return({'order_type':'WAIT'})
+
+
+def short_exit_conditions(custom_conditional_data, trade_information, indicators, prices, candles, symbol, btc_base):
+    pass
+
+
+def short_entry_conditions(custom_conditional_data, trade_information, indicators, prices, candles, symbol, btc_base):
+    pass

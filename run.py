@@ -30,19 +30,8 @@ logger = logging.getLogger()
 def main():
     settings = handler.settings_reader()
 
-    botCore.start(
-        settings['traderCurrency'], 
-        settings['markets'], 
-        settings['mainInterval'],
-        settings['runType'],
-        settings['publicKey'], 
-        settings['privateKey'], 
-        settings['host_ip'],
-        settings['host_port'],
-        settings['max_candles'],
-        settings['max_depth'],
-        ORDER_LOGS_PATH)
-    
+    botCore.start(settings, ORDER_LOGS_PATH)
+
 
 if __name__ == '__main__':
     main()

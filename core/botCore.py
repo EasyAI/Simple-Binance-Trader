@@ -22,14 +22,14 @@ from binance_api import socket_master
 from . import trader
 from . import handler
 
-##
-BOT_CORE = None
-
 APP         = Flask(__name__)
 SOCKET_IO   = SocketIO(APP)
 
 ##
 BOT_CORE    = None
+
+host_ip = ''
+host_port = ''
 
 
 @APP.context_processor
@@ -56,7 +56,12 @@ def control_panel():
     web_updater_thread = threading.Thread(target=web_updater)
     web_updater_thread.start()
 
-    return(render_template('main_page.html'))
+    start_up_data = {'hostIP':host_ip, 
+                    'hostPort':host_port}
+
+    print(start_up_data)
+
+    return(render_template('main_page.html', data=start_up_data))
 
 
 @APP.route('/rest-api/v1/add_trader', methods=['POST'])
@@ -68,15 +73,12 @@ def add_trader():
 @APP.route('/rest-api/v1/trader_update', methods=['POST'])
 def update_trader():
     post_data = request.get_json()
-    print(request.get_json())
-
     current_trader = None
     for trader in BOT_CORE.trader_objects:
         if trader.symbol == post_data['market']:
             current_trader = trader
             break
 
-    print(current_trader)
     if current_trader == None:
         return(json.dumps({'call':False}))
 
@@ -102,6 +104,12 @@ def get_trader_data():
     return(json.dumps({'call':True, 'data':BOT_CORE.get_trader_data()}))
 
 
+@APP.route('/rest-api/v1/get_trader_indicators', methods=['GET'])
+def get_trader_indicators():
+    print(request.get_json())
+    return(json.dumps({'call':True, 'data':BOT_CORE.get_trader_indicators()}))
+
+
 @APP.route('/rest-api/v1/test', methods=['GET'])
 def test_rest_call():
     return(json.dumps({'call':True,'data':'Hello World'}))
@@ -124,7 +132,7 @@ def web_updater():
 
 class BotCore():
 
-    def __init__(self, MAC, trading_markets, candle_Interval, run_type, publicKey, privateKey, max_candles, max_depth, order_log_path):
+    def __init__(self, runType, marketType, publicKey, privateKey, MAC, trading_markets, candle_Interval, max_candles, max_depth, order_log_path):
         ''' 
         
         '''
@@ -133,7 +141,8 @@ class BotCore():
         self.rest_api = rest_master.Binance_REST(publicKey, privateKey)
         self.order_log_path = order_log_path
 
-        self.run_type = run_type
+        self.run_type       = runType
+        self.market_type    = marketType
 
         logging.info('[BotCore] Initilizing BinancesSOCK object.')
         self.socket_api = socket_master.Binance_SOCK()
@@ -142,14 +151,13 @@ class BotCore():
             self.socket_api.set_candle_stream(symbol=market, interval=candle_Interval)
             self.socket_api.set_manual_depth_stream(symbol=market, update_speed='1000ms')
 
-        self.socket_api.set_userDataStream(self.rest_api)
+        self.socket_api.set_userDataStream(self.rest_api, marketType)
 
         self.socket_api.BASE_CANDLE_LIMIT = max_candles
         self.socket_api.BASE_DEPTH_LIMIT = max_depth
 
         self.socket_api.build_query()
         self.socket_api.set_live_and_historic_combo(self.rest_api)
-        print(self.socket_api.query)
 
         ## Trader settings.
         self.MAC = MAC
@@ -212,8 +220,11 @@ class BotCore():
                                     self.rest_api))
 
         if self.run_type == 'REAL':
-            user_info = self.rest_api.get_account('SPOT')
-            wallet_balances = user_info['balances']
+            user_info = self.rest_api.get_account(self.market_type)
+            if self.market_type == 'SPOT':
+                wallet_balances = user_info['balances']
+            elif self.market_type == 'MARGIN':
+                wallet_balances = user_info['userAssets']
             current_tokens = {}
             
             for balance in wallet_balances:
@@ -223,19 +234,31 @@ class BotCore():
                                         float(balance['free']),
                                         float(balance['locked'])]})
 
-            open_orders = self.rest_api.get_open_orders('SPOT')
+            open_orders = self.rest_api.get_open_orders(self.market_type)
         else:
             current_tokens = {'BTC':[float(self.MAC), 0.0]}
             open_orders = None
+
+        cached_traders_data = handler.read_cache_file(1)
 
         logging.info('[BotCore] Starting the trader objects.')
         for trader_ in self.trader_objects:
             wallet_pair = {}
             openOrder = None
             trader_.orders_log_path = self.order_log_path
+            current_trader_cache = False
+            currSymbol = "{0}{1}".format(trader_.base_asset, trader_.quote_asset)
+
+            if cached_traders_data:
+                for cached_trader in cached_traders_data['data']:
+                    m_split = cached_trader['market'].split('-')
+                    if (m_split[1]+m_split[0]) == currSymbol:
+                        trader_.custom_conditional_data = cached_trader['customConditional']
+                        trader_.trade_information = cached_trader['tradeInfo']
+                        trader_.trader_stats = cached_trader['traderStats']
+                        current_trader_cache = True
 
             if open_orders != None:
-                currSymbol = "{0}{1}".format(trader_.base_asset, trader_.quote_asset)
                 for order in open_orders:
                     if order['symbol'] == currSymbol:
                         openOrder = order
@@ -247,11 +270,15 @@ class BotCore():
             if trader_.base_asset in current_tokens:
                 wallet_pair.update({trader_.base_asset:current_tokens[trader_.base_asset]})
 
-            trader_.start(self.MAC, wallet_pair, self.run_type, openOrder)
+            trader_.start(self.market_type, self.run_type, self.MAC, wallet_pair, current_trader_cache, openOrder)
 
         logging.debug('[BotCore] Starting connection manager thread.')
         CM_thread = threading.Thread(target=self._connection_manager)
         CM_thread.start()
+
+        logging.debug('[BotCore] Starting file manager thread.')
+        FM_thread = threading.Thread(target=self._file_manager)
+        FM_thread.start()
 
         logging.info('[BotCore] BotCore successfully started.')
         self.coreState = 'RUN'
@@ -266,6 +293,14 @@ class BotCore():
             trader_.stop()
 
         self.coreState = 'STOP'
+
+
+    def _file_manager(self):
+        while self.coreState != 'STOP':
+            time.sleep(15)
+
+            traders_data = self.get_trader_data()['traders']
+            handler.save_cache_file(1, traders_data)
 
 
     def _connection_manager(self):
@@ -298,32 +333,58 @@ class BotCore():
         rData       = {'traders':[], 'topData':None}
         tradeTotal  = 0
         outcomes    = 0
+        market_types = ['short', 'long']
 
         for trader_ in self.trader_objects:
             trader_data = trader_.get_trader_data()
 
             rData['traders'].append(trader_data)
 
-            outcomes += trader_data['tradeInfo']['overall']
+            for market_type in market_types:
+                outcomes += trader_data['traderStats']['overall'][market_type]
 
-            tradeTotal += trader_data['tradeInfo']['#Trades']
+                tradeTotal += trader_data['traderStats']['#Trades'][market_type]
 
         rData['topData'] = {'oTrades':tradeTotal, 'oTotal':outcomes}
         return(rData)
 
 
-def start(mac, markets, interval, run_type, publicKey, privateKey, host_ip, host_port, max_candles, max_depth, order_log_path):
+    def get_trader_indicators(self):
+        indicator_data_set = {}
+        for _trader in self.trader_objects:
+            indicator_data_set.update({_trader.print_pair:_trader.indicators})
+        return(indicator_data_set)
+
+
+def start(settings, order_log_path):
     '''
     Intilize the bot core object and also the flask object
     '''
-    global BOT_CORE
+    global BOT_CORE, host_ip, host_port
 
     if BOT_CORE == None:
-        BOT_CORE = BotCore(mac, markets, interval, run_type, publicKey, privateKey, max_candles, max_depth, order_log_path)
+        BOT_CORE = BotCore(
+            settings['run_type'],
+            settings['market_type'],
+            settings['public_key'],
+            settings['private_key'],
+            settings['trading_currency'],
+            settings['trading_markets'],
+            settings['trader_interval'],
+            settings['max_candles'],
+            settings['max_depth'],
+            order_log_path)
         BOT_CORE.start()
 
-    logging.info('[BotCore] Starting traders in {0} mode.'.format(run_type))
+    logging.info('[BotCore] Starting traders in {0} mode, market type is {1}.'.format(settings['run_type'], settings['market_type']))
     log = logging.getLogger('werkzeug')
     log.setLevel(logging.ERROR)
 
-    SOCKET_IO.run(APP, host=host_ip, port=host_port, debug=True, use_reloader=False)
+    host_ip = settings['host_ip']
+    host_port = settings['host_port']
+
+    SOCKET_IO.run(APP, 
+        host=settings['host_ip'], 
+        port=settings['host_port'], 
+        debug=True, 
+        use_reloader=False)

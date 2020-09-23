@@ -33,46 +33,50 @@ def settings_reader():
     with open('settings', 'r') as file:
         for line in file.readlines():
 
-            if '=' in line:
+            if '=' in line and not('#' in line):
                 key, data = line.split('=')
 
                 if data != None:
                     data = data.replace('\n', '')
 
-                if key == 'runType':
-                    settings_file_data.update({'runType':data.upper()})
+                if key == 'IS_TEST':
+                    run_type = 'TEST' if data.upper() == 'TRUE' else 'REAL'
+                    settings_file_data.update({'run_type':run_type})
 
-                if key == 'publicKey':
-                    settings_file_data.update({'publicKey':data})
+                elif key == 'MARKET_TYPE':
+                    settings_file_data.update({'market_type':data.upper()})
 
-                elif key == 'privateKey':
-                    settings_file_data.update({'privateKey':data})
+                elif key == 'PUBLIC_KEY':
+                    settings_file_data.update({'public_key':data})
 
-                elif key == 'markets':
-                    settings_file_data.update({'markets':data.split(',') if ',' in data else [data]})
+                elif key == 'PRIVATE_KEY':
+                    settings_file_data.update({'private_key':data})
 
-                elif key == 'mainInterval':
-                    settings_file_data.update({'mainInterval':data})
+                elif key == 'TRADING_MARKETS':
+                    settings_file_data.update({'trading_markets':data.split(',') if ',' in data else [data]})
 
-                elif key == 'traderCurrency':
-                    settings_file_data.update({'traderCurrency':data})
+                elif key == 'TRADER_INTERVAL':
+                    settings_file_data.update({'trader_interval':data})
 
-                elif key == 'host_ip':
+                elif key == 'TRADING_CURRENCY':
+                    settings_file_data.update({'trading_currency':data})
+
+                elif key == 'HOST_IP':
                     default_ip = '127.0.0.1'
                     t_ip = default_ip if data == '' else data
                     settings_file_data.update({'host_ip':t_ip})
 
-                elif key == 'host_port':
+                elif key == 'HOST_PORT':
                     default_port = 5000
                     t_port = default_port if data == '' else int(data)
                     settings_file_data.update({'host_port':t_port})
 
-                elif key == 'max_candles':
+                elif key == 'MAX_CANDLES':
                     default_candles_range = 500
                     candle_range = default_candles_range if data == '' else int(data)
                     settings_file_data.update({'max_candles':candle_range})
 
-                elif key == 'max_depth':
+                elif key == 'MAX_DEPTH':
                     default_depth_range = 50
                     depth_range = default_depth_range if data == '' else int(data)
                     settings_file_data.update({'max_depth':depth_range})

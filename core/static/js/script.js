@@ -1,6 +1,8 @@
 //
-var socket = io('http://127.0.0.1:5000');
+// 
+var socket = io('http://'+ip+':'+port);
 var xmlhttp = new XMLHttpRequest();
+
 
 /*
 calls 
@@ -55,13 +57,28 @@ function build_results_table(data) {
 
         current = currentTraders[i];
 
-        market_pair      = current['symbol'];
-        overall          = current['tradeInfo']['overall'];
+        market_pair = current['market'];
+        overall = current['traderStats']['overall'];
 
-        if (current['tradeInfo']['orderType']['S'] == null){
-            PriceString  = `BUY | Type:${current['tradeInfo']['orderType']['B']} | Status:${current['tradeInfo']['orderStatus']['B']} | Buy Price:${current['tradeInfo']['buyPrice']} | Last Price: ${current['prices']['lastPrice']}`;
+        var short_stats_string = '';
+        var long_stats_string = '';
+
+        if (current['tradeInfo']['long_order_type']['S'] == null){
+            long_stats_string  = `Long BUY | Type:${current['tradeInfo']['long_order_type']['B']} | Status:${current['tradeInfo']['long_order_status']['B']} | Buy Price:${current['tradeInfo']['buy_price']['long']}`;
+        } else if (current['tradeInfo']['long_order_type']['S'] != null) {
+            long_stats_string  = `Long SELL | Type:${current['tradeInfo']['long_order_type']['S']} | Status:${current['tradeInfo']['long_order_status']['S']} | Buy Price:${current['tradeInfo']['buy_price']['long']} | Sell Price:${current['tradeInfo']['sell_price']['long']}`;
+        }
+
+        if (current['tradeInfo']['short_order_type']['S'] == null){
+            short_stats_string  = `Short BUY | Type:${current['tradeInfo']['short_order_type']['B']} | Status:${current['tradeInfo']['short_order_status']['B']} | Buy Price:${current['tradeInfo']['buy_price']['short']}`;
+        } else if (current['tradeInfo']['short_order_type']['S'] != null) {
+            short_stats_string  = `Short SELL | Type:${current['tradeInfo']['short_order_type']['S']} | Status:${current['tradeInfo']['short_order_status']['S']} | Buy Price:${current['tradeInfo']['buy_price']['short']} | Sell Price:${current['tradeInfo']['sell_price']['short']}`;
+        }
+
+        if (short_stats_string != '') {
+            total_price_string = `${long_stats_string}<br>${short_stats_string}`;
         } else {
-            PriceString  = `SELL | Type:${current['tradeInfo']['orderType']['S']} | Status:${current['tradeInfo']['orderStatus']['S']} | Buy Price:${current['tradeInfo']['buyPrice']} | Sell Price:${current['tradeInfo']['sellPrice']} | Last Price: ${current['prices']['lastPrice']}`;
+            total_price_string = long_stats_string;
         }
      
         buttonStart     = `<a href=# class="small-button green-button" onclick="start_trader(event, '${market_pair}');">Start</a>`;
@@ -70,8 +87,8 @@ function build_results_table(data) {
 
         row.innerHTML   = `
             <td id="market-pair">${market_pair}</td>
-            <td id="main-data">State: ${current['state']} | Trades: ${current['tradeInfo']['#Trades']} | Overall: ${Math.round(current['tradeInfo']['overall']*100000000)/100000000} | Last Update: ${current['lastUpdate']}<br>
-            ${PriceString}</td>
+            <td id="main-data">State: ${current['traderStats']['runtime_state']} | Trades: L:${current['traderStats']['#Trades']['long']}, S:${current['traderStats']['#Trades']['short']} | Overall: L:${Math.round(current['traderStats']['overall']['long']*100000000)/100000000}, S:${Math.round(current['traderStats']['overall']['short']*100000000)/100000000} | Last Update: ${current['traderStats']['last_update_time']} | Last Price: ${current['prices']['lastPrice']}<br>
+            ${total_price_string}</td>
             <td id="remove-button">${buttonStart} ${buttonPause} ${buttonRemove}</td>
             `;
 

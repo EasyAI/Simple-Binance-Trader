@@ -10,6 +10,10 @@
 
         <!-- This is used to load the modules that I made and will be using. -->
         <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+        <script type="text/javascript">
+            var ip = '{{ data.hostIP }}';
+            var port = '{{ data.hostPort }}';
+        </script>
         <script src="{{ url_for('static', filename='js/script.js') }}"></script>
         
     </head>
