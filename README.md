@@ -7,6 +7,8 @@ NOTE: The current strtergy is also very weak and will mostlikley return only los
 
 NOTE: Testing has been re-enabled I also recomend updating the binance_api again.
 
+NOTE: Trader now supports MARGIN trades allowing the placement of short and long positions. If SPOT trading put your conditions within the "long_entry/long_exit" sections within the trader_configuration.py file.
+
 
 ## Description
 This is a simple binance trader that uses the REST api and sockets to allow automation or manipulation of account detail/data. The script which in the default configuration uses a basic MACD trading setup to trade. The script however is very customisable and you'll be able to configure it as you with via the help of the document in the usage section.
