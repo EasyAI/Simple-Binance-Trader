@@ -255,8 +255,6 @@ class BaseTrader(object):
 
             if self.run_type == 'REAL':
                 pass
-                #if self.runtime_state == 'STANDBY' and self.wallet_pair > self.base_mac:
-                #    self.runtime_state = 'RUN'
         
 
     def _order_status_manager(self, market_type, socket_buffer_symbol):
@@ -270,7 +268,6 @@ class BaseTrader(object):
             Monitor and note down the outcome of trades for keeping track of progress.
         '''
         current_order_type = '{0}_order_type'.format(market_type)
-        current_order_status = '{0}_order_status'.format(market_type)
         current_order_desc = '{0}_order_desc'.format(market_type)
         current_order_id = '{0}_order_id'.format(market_type)
 
@@ -351,6 +348,7 @@ class BaseTrader(object):
         tInfo = self.trade_information
         trade_done = False
         tokens_bought = None
+        current_order_status = '{0}_order_status'.format(market_type)
             
         if side == 'BUY':
             if self.run_type == 'REAL':
@@ -369,8 +367,8 @@ class BaseTrader(object):
                         if wallet_pair[target_wallet][0] >= target_quantity:
                             trade_done = True
                             tokens_bought = wallet_pair[self.base_asset][0]
-                    elif order_seen['X'] == 'PARTIALLY_FILLED':
-                        tInfo[current_order_status]['S'] = 'LOCKED'
+                    elif order_seen['X'] == 'PARTIALLY_FILLED' and tinfo[current_order_status]['B'] != 'LOCKED':
+                        self.trade_information[current_order_status]['B'] = 'LOCKED'
             else:
                 if market_type == 'long':
                     if tInfo['buy_price'][market_type] <= self.prices['lastPrice']:
@@ -388,8 +386,8 @@ class BaseTrader(object):
 
                     if order_seen['X'] == 'FILLED':
                         trade_done = True
-                    elif order_seen['X'] == 'PARTIALLY_FILLED':
-                        tInfo[current_order_status]['B'] = 'LOCKED'
+                    elif order_seen['X'] == 'PARTIALLY_FILLED'  and tinfo[current_order_status]['S'] != 'LOCKED':
+                        self.trade_information[current_order_status]['S'] = 'LOCKED'
             else:
                 if market_type == 'long':
                     if tInfo['sell_price'][market_type] >= self.prices['lastPrice']:
@@ -443,6 +441,9 @@ class BaseTrader(object):
                     candles,
                     self.print_pair,
                     self.btc_base_pair)
+
+            if not(new_order):
+                return
 
             orderType = new_order['order_type']
 
@@ -498,6 +499,9 @@ class BaseTrader(object):
                     self.print_pair,
                     self.btc_base_pair)
 
+            if not(new_order):
+                return
+
             orderType = new_order['order_type']
 
             if orderType != 'WAIT':
@@ -529,7 +533,9 @@ class BaseTrader(object):
         ## Place Market Order.
         if order:
             order_results = self._place_order(market_type, order)
-            logging.debug(order_results, order)
+            logging.debug('order: {0}\norder result:\n{1}'.format(order, order_results))
+
+            print(order_results)
 
             if 'code' in order_results:
                 ## used to catch error codes.
@@ -540,18 +546,26 @@ class BaseTrader(object):
                 logging.debug('[BaseTrader] {0} Order placement results:\n{1}'.format(self.print_pair, str(order_results)))
 
                 if order['side'] == 'BUY':
+                    if 'price' in order:
+                        self.trade_information['buy_price'][market_type] = float(order['price'])
+
                     if self.run_type == 'REAL':
                         self.trade_information[current_order_id]['B'] = order_results['orderId']
+
                     self.trade_information[current_order_type]['B'] = orderType
                     self.trade_information[current_order_status]['B'] = 'PLACED'
                 else:
+                    if 'price' in order:
+                        self.trade_information['sell_price'][market_type] = float(order['price'])
+
                     if self.run_type == 'REAL':
                         self.trade_information[current_order_id]['S'] = order_results['orderId']
+
                     self.trade_information[current_order_type]['S'] = orderType
                     self.trade_information[current_order_status]['S'] = 'PLACED'
 
-                logging.debug(current_order_status)
-                logging.debug(updateOrder, orderType, self.trade_information[current_order_status])
+                logging.info('order status: {0}'.format(current_order_status))
+                logging.info('update: {0}, type: {1}, status: {2}'.format(updateOrder, orderType, self.trade_information[current_order_status]))
 
 
     def _place_order(self, market_type, order):
@@ -594,13 +608,15 @@ class BaseTrader(object):
         else:
             return('NO_VALID_SIDE_SET')
         
-        logging.debug(self.trader_stats['wallet_pair'])
-        logging.debug(quantity)
+        logging.info('wallet pair: {0}'.format(self.trader_stats['wallet_pair']))
+        logging.info('quantity: {0}'.format(quantity))
 
         ## Setup the quantity to be the correct precision.
         if quantity:
             split_quantity = str(quantity).split('.')
             quantity = float(split_quantity[0]+'.'+split_quantity[1][:self.rules['LOT_SIZE']])
+
+        logging.info('quantity: {0}'.format(quantity))
 
         ## Place orders for both SELL/BUY sides for both TEST/REAL run types.
         if self.run_type == 'REAL':
@@ -671,12 +687,6 @@ class BaseTrader(object):
                 price = self.prices['lastPrice']
             else:
                 price = order['price']
-
-            if order['side'] == 'SELL':
-                self.trade_information['sell_price'][market_type] = float(price)
-
-            elif order['side'] == 'BUY':
-                self.trade_information['buy_price'][market_type] = float(price)
 
             self.trader_stats['tester_quantity'][market_type] = float(quantity)
 
