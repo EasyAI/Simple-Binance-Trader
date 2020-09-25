@@ -367,7 +367,7 @@ class BaseTrader(object):
                         if wallet_pair[target_wallet][0] >= target_quantity:
                             trade_done = True
                             tokens_bought = wallet_pair[self.base_asset][0]
-                    elif order_seen['X'] == 'PARTIALLY_FILLED' and tinfo[current_order_status]['B'] != 'LOCKED':
+                    elif order_seen['X'] == 'PARTIALLY_FILLED' and tInfo[current_order_status]['B'] != 'LOCKED':
                         self.trade_information[current_order_status]['B'] = 'LOCKED'
             else:
                 if market_type == 'long':
@@ -386,7 +386,7 @@ class BaseTrader(object):
 
                     if order_seen['X'] == 'FILLED':
                         trade_done = True
-                    elif order_seen['X'] == 'PARTIALLY_FILLED'  and tinfo[current_order_status]['S'] != 'LOCKED':
+                    elif order_seen['X'] == 'PARTIALLY_FILLED' and tInfo[current_order_status]['S'] != 'LOCKED':
                         self.trade_information[current_order_status]['S'] = 'LOCKED'
             else:
                 if market_type == 'long':
@@ -628,6 +628,8 @@ class BaseTrader(object):
                 if order['side'] == 'BUY':
                     ## Calculate the quantity required for a short loan.
                     loan_get_result = self.rest_api.apply_for_loan(asset=self.base_asset, amount=quantity)
+                    print(self.base_asset, quantity)
+                    print(loan_get_result)
                     self.trade_information['loan_id'][market_type] = loan_get_result['tranId']
                     self.trade_information[current_order_id]['S'] = None
                     self.trade_information['loan_cost'][market_type] = quantity
