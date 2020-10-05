@@ -270,6 +270,7 @@ class BaseTrader(object):
         current_order_type = '{0}_order_type'.format(market_type)
         current_order_desc = '{0}_order_desc'.format(market_type)
         current_order_id = '{0}_order_id'.format(market_type)
+        current_order_status = '{0}_order_status'.format(market_type)
 
         active_trade = False
         if self.run_type == 'REAL':
@@ -581,8 +582,9 @@ class BaseTrader(object):
 
             if self.run_type == 'REAL':
                 if self.trade_information[current_order_id]['B']:
+                    print("order id:", self.trade_information[current_order_id]['B'])
                     cancel_order_results = self._cancel_order(self.trade_information[current_order_id]['B'])
-                    logging.debug('[BaseTrader] {0} cancel order results:\n{1}'.format(self.print_pair, str(cancel_order_results)))
+                    logging.info('[BaseTrader] {0} cancel order results:\n{1}'.format(self.print_pair, str(cancel_order_results)))
 
         elif order['side'] == 'SELL':
             if self.run_type == 'REAL':
@@ -603,8 +605,9 @@ class BaseTrader(object):
 
             if self.run_type == 'REAL':
                 if self.trade_information[current_order_id]['S']:
+                    print("order id:", self.trade_information[current_order_id]['S'])
                     cancel_order_results = self._cancel_order(self.trade_information[current_order_id]['S'])
-                    logging.debug('[BaseTrader] {0} cancel order results:\n{1}'.format(self.print_pair, str(cancel_order_results)))
+                    logging.info('[BaseTrader] {0} cancel order results:\n{1}'.format(self.print_pair, str(cancel_order_results)))
         else:
             return('NO_VALID_SIDE_SET')
         
