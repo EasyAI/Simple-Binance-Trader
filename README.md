@@ -37,8 +37,6 @@ This is a simple binance trader that uses the REST api and sockets to allow auto
 - MAX_CANDLES - Max candles the trader will use (if left brank default is 500)
 - MAX_DEPTH - Max market depth the trader will use (if left brank default is 50)
 
-NOTE: If you wish to not host the web app locally you need to also edit the core/static/js/script.js ip address a the top of the file
-
 ## Usage
 I recommend setting this all up within a virtual python enviornment:
 First get the base modules:
