@@ -25,14 +25,17 @@ This is a simple binance trader that uses the REST api and sockets to allow auto
   - templates : Folder for HTML page templates.
   
 ### Setting File:
-- "publicKey" = Public API key.
-- "privateKey" = Private API key.
-- "runType" = Which mode to run teh trader (TEST/REAL) currently only real trades are configured, no simulation mode has been added yet
-- "mainInterval" = The Time interval for candles.
-- "traderCurrency" = The amount of btc allowed to share between every market.
-- "markets" = The market(s) you want to trade (currently only BTC markets are supported).
-- "host_ip" = Host IP can be set for the webserver to access the trader.
-- "host_port" = Host port can be set for the webserver to access the trader.
+- PUBLIC_KEY -  Your public binanace api key
+- PRIVATE_KEY - Your private binanace api key
+- IS_TEST - If the trader should only simulate orders or actually place them (if running real api keys are required)
+- MARKET_TYPE - Market type to be traded (SPOT/MARGIN)
+- TRADER_INTERVAL - The interval that is being traded at 3m, 5m, 1h, 1d, etc.
+- TRADING_CURRENCY - The amount of curreny each trader can use for its trades (in BTC)
+- TRADING_MARKETS - The markets that are being traded and seperate with ',' (BTC-ETH,BTC-NEO)
+- HOST_IP - The host IP for the web UI (if left blank default is 127.0.0.1)
+- HOST_PORT - The host port for the web UI (if left blank default is 5000)
+- MAX_CANDLES - Max candles the trader will use (if left brank default is 500)
+- MAX_DEPTH - Max market depth the trader will use (if left brank default is 50)
 
 NOTE: If you wish to not host the web app locally you need to also edit the core/static/js/script.js ip address a the top of the file
 
