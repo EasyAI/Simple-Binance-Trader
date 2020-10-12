@@ -544,12 +544,20 @@ class BaseTrader(object):
                 return
 
             if order_results != None:
+                print(order_results)
                 logging.info('[BaseTrader] {0} Order placed for {1}.'.format(self.print_pair, orderType))
                 logging.debug('[BaseTrader] {0} Order placement results:\n{1}'.format(self.print_pair, str(order_results)))
 
+                price1 = float(order_results['price'])
+
+                if 'price' in order:
+                    price2 = float(order['price'])
+                    if price1 == 0.0: order_price = price2
+                    else: order_price = price1
+                else: order_price = price1
+
                 if order['side'] == 'BUY':
-                    if 'price' in order_results:
-                        self.trade_information['buy_price'][market_type] = float(order_results['price'])
+                    self.trade_information['buy_price'][market_type] = order_price
 
                     if self.run_type == 'REAL':
                         self.trade_information[current_order_id]['B'] = order_results['orderId']
@@ -557,8 +565,7 @@ class BaseTrader(object):
                     self.trade_information[current_order_type]['B'] = orderType
                     self.trade_information[current_order_status]['B'] = 'PLACED'
                 else:
-                    if 'price' in order_results:
-                        self.trade_information['sell_price'][market_type] = float(order_results['price'])
+                    self.trade_information['sell_price'][market_type] = order_price
 
                     if self.run_type == 'REAL':
                         self.trade_information[current_order_id]['S'] = order_results['orderId']
