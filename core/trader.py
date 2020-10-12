@@ -16,8 +16,6 @@ import trader_configuration as TC
 ## Base commission fee with binance.
 COMMISION_FEE = 0.00075
 
-INVERT_FOR_BTC_FIAT = True
-
 class BaseTrader(object):
 
     def __init__(self, base_asset, quote_asset, filters, socket_api, rest_api):
@@ -47,7 +45,7 @@ class BaseTrader(object):
         self.market_type    = None
 
         # Holds the current symbolic pair of the market being traded.
-        self.btc_base_pair  = True if base_asset == 'BTC'else False
+        self.btc_base_pair  = True if base_asset == 'BTC' else False
         self.print_pair     = '{0}-{1}'.format(quote_asset, base_asset)
         self.symbol         = symbol
         self.quote_asset    = quote_asset
@@ -95,10 +93,7 @@ class BaseTrader(object):
         }        
 
         # Holds the rules required for the market.
-        self.rules = {
-            'LOT_SIZE':filters['lotSize'],
-            'TICK_SIZE':filters['tickSize'],
-            'MINIMUM_NOTATION':filters['minNotional']}
+        self.rules = filters
 
 
     def start(self, market_type, run_type, MAC, wallet_pair, reload_settings=False, open_orders=None):
@@ -113,6 +108,11 @@ class BaseTrader(object):
             Once all is good the trader will then start the thread to allow for the market to be monitored.
         '''
         logging.debug('[BaseTrader] Starting trader {0}.'.format(self.print_pair))
+        sock_symbol = self.base_asset+self.quote_asset
+
+        while True:
+            if self.socket_api.get_live_candles()[sock_symbol] and ('a' in self.socket_api.get_live_depths()[sock_symbol]):
+                break
 
         self.run_type                       = run_type
         self.market_type                    = market_type
@@ -120,9 +120,14 @@ class BaseTrader(object):
         self.trader_stats['wallet_pair']    = wallet_pair
         
         if not(reload_settings):
-            self.trader_stats['base_mac']               = float(MAC)
-            self.trader_stats['currency_left']['long']  = float(MAC)
-            self.trader_stats['currency_left']['short'] = float(MAC)
+            if self.rules['isFiat'] == True and self.rules['invFiatToBTC']:
+                MAC = self.socket_api.get_live_candles()[sock_symbol]*float(MAC)
+            else:
+                MAC = float(MAC)
+
+            self.trader_stats['base_mac']               = MAC
+            self.trader_stats['currency_left']['long']  = MAC
+            self.trader_stats['currency_left']['short'] = MAC
 
         ## Start the main of the trader in a thread.
         logging.debug('[BaseTrader] Starting trader main thread {0}.'.format(self.print_pair))
@@ -172,11 +177,6 @@ class BaseTrader(object):
             Trader Manager is used to check the current conditions of the indicators then set orders if any can be PLACED.
         '''
         sock_symbol = self.base_asset+self.quote_asset
-
-        while True:
-            if self.socket_api.get_live_candles()[sock_symbol] and ('a' in self.socket_api.get_live_depths()[sock_symbol]):
-                break
-
         last_wallet_update_time = 0
 
         if self.market_type == 'SPOT':
@@ -329,7 +329,10 @@ class BaseTrader(object):
                     if self.run_type == 'REAL':
                         loan_repay_result = self.rest_api.repay_loan(asset=self.base_asset, amount=self.trade_information['loan_cost'][market_type])
 
-                outcome = float('{0:.8f}'.format(((tInfo['sell_price'][market_type]-tInfo['buy_price'][market_type])*tokens_holding)))
+                if self.rules['isFiat'] == True and self.rules['invFiatToBTC']:
+                    outcome = float('{0:.8f}'.format(((tInfo['sell_price'][market_type]-tInfo['buy_price'][market_type])*(tokens_holding/tInfo['sell_price'][market_type]))))
+                else: 
+                    outcome = float('{0:.8f}'.format(((tInfo['sell_price'][market_type]-tInfo['buy_price'][market_type])*tokens_holding)))
 
                 with open(self.orders_log_path, 'a') as file:
                     buyResp = 'marketType:{3}, Buy order, price: {0:.8f}, time: {1} [{2}] | '.format(tInfo['buy_price'][market_type], buyTime, tInfo[current_order_desc]['B'], market_type)
@@ -536,8 +539,6 @@ class BaseTrader(object):
             order_results = self._place_order(market_type, order)
             logging.debug('order: {0}\norder result:\n{1}'.format(order, order_results))
 
-            print(order_results)
-
             if 'code' in order_results:
                 ## used to catch error codes.
                 return
@@ -547,8 +548,8 @@ class BaseTrader(object):
                 logging.debug('[BaseTrader] {0} Order placement results:\n{1}'.format(self.print_pair, str(order_results)))
 
                 if order['side'] == 'BUY':
-                    if 'price' in order:
-                        self.trade_information['buy_price'][market_type] = float(order['price'])
+                    if 'price' in order_results:
+                        self.trade_information['buy_price'][market_type] = float(order_results['price'])
 
                     if self.run_type == 'REAL':
                         self.trade_information[current_order_id]['B'] = order_results['orderId']
@@ -556,8 +557,8 @@ class BaseTrader(object):
                     self.trade_information[current_order_type]['B'] = orderType
                     self.trade_information[current_order_status]['B'] = 'PLACED'
                 else:
-                    if 'price' in order:
-                        self.trade_information['sell_price'][market_type] = float(order['price'])
+                    if 'price' in order_results:
+                        self.trade_information['sell_price'][market_type] = float(order_results['price'])
 
                     if self.run_type == 'REAL':
                         self.trade_information[current_order_id]['S'] = order_results['orderId']
@@ -609,7 +610,7 @@ class BaseTrader(object):
                     cancel_order_results = self._cancel_order(self.trade_information[current_order_id]['S'])
                     logging.info('[BaseTrader] {0} cancel order results:\n{1}'.format(self.print_pair, str(cancel_order_results)))
         else:
-            return('NO_VALID_SIDE_SET')
+            return
         
         logging.info('wallet pair: {0}'.format(self.trader_stats['wallet_pair']))
         logging.info('quantity: {0}'.format(quantity))
@@ -639,6 +640,9 @@ class BaseTrader(object):
                     side = 'SELL'
                 else:
                     side = 'BUY'
+
+            if self.rules['isFiat'] == True and self.rules['invFiatToBTC']:
+                side = 'SELL' if order['side'] == 'BUY' else 'BUY'
 
             if order['ptype'] == 'MARKET':
                 logging.info('[BaseTrader] symbol:{0}, side:{1}, type:{2}, quantity:{3}'.format(
@@ -692,10 +696,9 @@ class BaseTrader(object):
                 price = self.prices['lastPrice']
             else:
                 price = order['price']
-
             self.trader_stats['tester_quantity'][market_type] = float(quantity)
 
-            return('PLACED_TEST_ORDER')
+            return({'action':'PLACED_TEST_ORDER', 'price':price})
 
 
     def _cancel_order(self, order_id):

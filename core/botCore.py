@@ -31,6 +31,9 @@ BOT_CORE    = None
 host_ip = ''
 host_port = ''
 
+ALL_BTC_PAIRS = ['USDT', 'BKRW' 'TUSD', 'BUSD', 'USDC', 'PAX', 'AUD', 'BIDR', 'DAI', 'EUR', 'GBP', 'IDRT', 'NGN', 'RUB', 'TRY', 'ZAR', 'UAH']
+INVERT_FOR_BTC_FIAT = False
+
 
 @APP.context_processor
 def override_url_for():
@@ -144,20 +147,11 @@ class BotCore():
         self.run_type       = runType
         self.market_type    = marketType
 
+        self.max_candles = max_candles
+        self.max_depth = max_depth
+
         logging.info('[BotCore] Initilizing BinancesSOCK object.')
         self.socket_api = socket_master.Binance_SOCK()
-
-        for market in trading_markets:
-            self.socket_api.set_candle_stream(symbol=market, interval=candle_Interval)
-            self.socket_api.set_manual_depth_stream(symbol=market, update_speed='1000ms')
-
-        self.socket_api.set_userDataStream(self.rest_api, marketType)
-
-        self.socket_api.BASE_CANDLE_LIMIT = max_candles
-        self.socket_api.BASE_DEPTH_LIMIT = max_depth
-
-        self.socket_api.build_query()
-        self.socket_api.set_live_and_historic_combo(self.rest_api)
 
         ## Trader settings.
         self.MAC = MAC
@@ -175,7 +169,6 @@ class BotCore():
         '''
         logging.info('[BotCore] Starting the BotCore object.')
         self.coreState = 'SETUP'
-        self.socket_api.start()
 
         logging.info('[BotCore] Collecting market info.')
 
@@ -188,12 +181,27 @@ class BotCore():
         else:
             market_rules = market_rules['data']['symbols']
 
+        ## check markets
+        found_markets = []
+        not_supported = []
         for market in market_rules:
             fmtMarket = '{0}-{1}'.format(market['quoteAsset'], market['baseAsset'])
 
             ## If the current market is not in the trading markets list then skip.
             if not fmtMarket in self.trading_markets:
                 continue
+
+            found_markets.append(fmtMarket)
+
+            if self.market_type == 'MARGIN':
+                if market['isMarginTradingAllowed'] == False: 
+                    not_supported.append(fmtMarket)
+                    continue
+
+            elif self.market_type == 'SPOT':
+                if market['isSpotTradingAllowed'] == False: 
+                    not_supported.append(fmtMarket)
+                    continue
 
             filters = market['filters']
 
@@ -210,15 +218,55 @@ class BotCore():
             ## This is used to get the markets minimal notation.
             mN = float(filters[3]['minNotional'])
 
-            market_rules = {'lotSize':lS, 'tickSize':tS, 'minNotional':mN}
+            isFiat = True if market['baseAsset'] in ALL_BTC_PAIRS else False
+
+            market_rules = {'LOT_SIZE':lS, 'TICK_SIZE':tS, 'MINIMUM_NOTATION':mN, 'isFiat':isFiat, 'invFiatToBTC':INVERT_FOR_BTC_FIAT}
 
             self.trader_objects.append(trader.BaseTrader(
-                                    market['baseAsset'], 
-                                    market['quoteAsset'],
-                                    market_rules,
-                                    self.socket_api,
-                                    self.rest_api))
+                market['baseAsset'], 
+                market['quoteAsset'],
+                market_rules,
+                self.socket_api,
+                self.rest_api))
 
+        ## Show markets that dont exist on the binance exchange.
+        not_found = ''
+        for market in self.trading_markets:
+            if market not in found_markets:
+                not_found += ' '+str(market)
+
+        if not_found != '':
+            print_str = 'Following market pairs do no exist:'+not_found
+            print(print_str)
+
+        ## Show markets that dont support the market type
+        not_support_text = ''
+        for market in not_supported:
+            if market not in not_support_text:
+                not_support_text += ' '+str(market)
+
+        if not_support_text != '':
+            print_str = 'Following market pairs are not supported for {0}:'.format(self.market_type)+not_support_text
+            print(print_str)
+
+        valid_tading_markets = [market for market in found_markets if market not in not_supported]
+
+        ## setup the socket
+        for market in valid_tading_markets:
+            self.socket_api.set_candle_stream(symbol=market, interval=self.candle_Interval)
+            self.socket_api.set_manual_depth_stream(symbol=market, update_speed='1000ms')
+
+        self.socket_api.set_userDataStream(self.rest_api, self.market_type)
+
+        self.socket_api.BASE_CANDLE_LIMIT = self.max_candles
+        self.socket_api.BASE_DEPTH_LIMIT = self.max_depth
+
+        self.socket_api.build_query()
+        self.socket_api.set_live_and_historic_combo(self.rest_api)
+
+        self.socket_api.start()
+
+        ## check for active trades
         if self.run_type == 'REAL':
             user_info = self.rest_api.get_account(self.market_type)
             if self.market_type == 'SPOT':
@@ -241,6 +289,7 @@ class BotCore():
 
         cached_traders_data = handler.read_cache_file(1)
 
+        ## start/setup traders
         logging.info('[BotCore] Starting the trader objects.')
         for trader_ in self.trader_objects:
             wallet_pair = {}
@@ -308,8 +357,13 @@ class BotCore():
         update_time = 0
         retryCounter = 1
 
+        time.sleep(20)
+
         while self.coreState != 'STOP':
             time.sleep(1)
+
+            if self.coreState != 'RUN':
+                continue
 
             if self.socket_api.last_data_recv_time != update_time:
                 update_time = self.socket_api.last_data_recv_time
