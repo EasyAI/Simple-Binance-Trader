@@ -120,14 +120,11 @@ class BaseTrader(object):
         self.trader_stats['wallet_pair']    = wallet_pair
         
         if not(reload_settings):
-            if self.rules['isFiat'] == True and self.rules['invFiatToBTC']:
-                MAC = self.socket_api.get_live_candles()[sock_symbol]*float(MAC)
-            else:
-                MAC = float(MAC)
+            MAC = float(MAC)
 
-            self.trader_stats['base_mac']               = MAC
-            self.trader_stats['currency_left']['long']  = MAC
-            self.trader_stats['currency_left']['short'] = MAC
+        self.trader_stats['base_mac']               = MAC
+        self.trader_stats['currency_left']['long']  = MAC
+        self.trader_stats['currency_left']['short'] = MAC
 
         ## Start the main of the trader in a thread.
         logging.debug('[BaseTrader] Starting trader main thread {0}.'.format(self.print_pair))
@@ -386,9 +383,9 @@ class BaseTrader(object):
         elif side == 'SELL':
             if self.run_type == 'REAL':
                 if order_seen['S'] == 'SELL' or (market_type == 'short' and order_seen['S'] == 'BUY'):
-                    self.trade_information['sell_price'][market_type] = float(order_seen['L'])
 
                     if order_seen['X'] == 'FILLED':
+                        self.trade_information['sell_price'][market_type] = float(order_seen['L'])
                         trade_done = True
                     elif order_seen['X'] == 'PARTIALLY_FILLED' and tInfo[current_order_status]['S'] != 'LOCKED':
                         self.trade_information[current_order_status]['S'] = 'LOCKED'
@@ -548,13 +545,23 @@ class BaseTrader(object):
                 logging.info('[BaseTrader] {0} Order placed for {1}.'.format(self.print_pair, orderType))
                 logging.debug('[BaseTrader] {0} Order placement results:\n{1}'.format(self.print_pair, str(order_results)))
 
-                price1 = float(order_results['price'])
+                if 'type' in order_results:
+                    if order_results['type'] == 'MARKET':
+                        price1 = order_results['fills'][0]['price']
+                    else:
 
+                        price1 = order_results['price']
+                else: price1 = None
+
+                price2 = None
                 if 'price' in order:
                     price2 = float(order['price'])
-                    if price1 == 0.0: order_price = price2
+                    if price1 == 0.0 or price1 == None: 
+                        order_price = price2
                     else: order_price = price1
                 else: order_price = price1
+
+                print(price1, price2)
 
                 if order['side'] == 'BUY':
                     self.trade_information['buy_price'][market_type] = order_price
@@ -565,7 +572,9 @@ class BaseTrader(object):
                     self.trade_information[current_order_type]['B'] = orderType
                     self.trade_information[current_order_status]['B'] = 'PLACED'
                 else:
+                    print(order_price)
                     self.trade_information['sell_price'][market_type] = order_price
+                    print(self.trade_information['sell_price'][market_type])
 
                     if self.run_type == 'REAL':
                         self.trade_information[current_order_id]['S'] = order_results['orderId']
@@ -583,10 +592,16 @@ class BaseTrader(object):
 
         ## Setup the price to be the correct precision.
 
+        if self.rules['isFiat'] and self.rules['invFiatToBTC']:
+            side = 'SELL' if order['side'] == 'BUY' else 'BUY'
+
         ## Calculate the quantity amount for the BUY/SELL side for long/short real/test trades.
         quantity = None
         if order['side'] == 'BUY':
-            quantity = float(self.trader_stats['currency_left'][market_type])/float(self.prices['bidPrice'])
+            if self.rules['isFiat']:
+                quantity = self.trader_stats['currency_left'][market_type]
+            else:
+                quantity = float(self.trader_stats['currency_left'][market_type])/float(self.prices['bidPrice'])
 
             if self.run_type == 'REAL':
                 if self.trade_information[current_order_id]['B']:
@@ -595,10 +610,13 @@ class BaseTrader(object):
                     logging.info('[BaseTrader] {0} cancel order results:\n{1}'.format(self.print_pair, str(cancel_order_results)))
 
         elif order['side'] == 'SELL':
-            if self.run_type == 'REAL':
-                tokens_holding = self.trader_stats['wallet_pair'][self.base_asset][0]
+            if self.rules['isFiat']:
+                quantity = self.trader_stats['tokens_holding'][market_type]*float(self.prices['bidPrice'])
             else:
-                tokens_holding = self.trader_stats['tokens_holding'][market_type]
+                if self.run_type == 'REAL':
+                    tokens_holding = self.trader_stats['wallet_pair'][self.base_asset][0]
+                else:
+                    tokens_holding = self.trader_stats['tokens_holding'][market_type]
 
             if market_type == 'long':
                 quantity = float(tokens_holding)
@@ -647,9 +665,6 @@ class BaseTrader(object):
                     side = 'SELL'
                 else:
                     side = 'BUY'
-
-            if self.rules['isFiat'] == True and self.rules['invFiatToBTC']:
-                side = 'SELL' if order['side'] == 'BUY' else 'BUY'
 
             if order['ptype'] == 'MARKET':
                 logging.info('[BaseTrader] symbol:{0}, side:{1}, type:{2}, quantity:{3}'.format(

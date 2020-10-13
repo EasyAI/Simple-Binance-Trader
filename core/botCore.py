@@ -113,6 +113,13 @@ def get_trader_indicators():
     return(json.dumps({'call':True, 'data':BOT_CORE.get_trader_indicators()}))
 
 
+@APP.route('/rest-api/v1/get_trader_candles', methods=['GET'])
+def get_trader_candles():
+    print(request.get_json())
+    return(json.dumps({'call':True, 'data':BOT_CORE.get_trader_candles()}))
+
+
+
 @APP.route('/rest-api/v1/test', methods=['GET'])
 def test_rest_call():
     return(json.dumps({'call':True,'data':'Hello World'}))
@@ -408,6 +415,14 @@ class BotCore():
         for _trader in self.trader_objects:
             indicator_data_set.update({_trader.print_pair:_trader.indicators})
         return(indicator_data_set)
+
+
+    def get_trader_candles(self):
+        candle_data_set = {}
+        for _trader in self.trader_objects:
+            sock_symbol = _trader.base_asset+_trader.quote_asset
+            candle_data_set.update({_trader.print_pair:self.socket_api.get_live_candles()[sock_symbol]})
+        return(candle_data_set)
 
 
 def start(settings, order_log_path):
