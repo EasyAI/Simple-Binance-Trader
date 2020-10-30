@@ -41,14 +41,7 @@ function build_results_table(data) {
 
     outcome = data['data']['topData'];
 
-    row = document.createElement('tr');
-    row.setAttribute('id', 'overall-section');
-
-    row.innerHTML = `<td></td><td>Trades Done: ${outcome['oTrades']} | Outcome: ${Math.round(outcome['oTotal']*100000000)/100000000}</td>`;
-
-    list.appendChild(row);
-
-    currentTraders = data['data']['traders'];
+    currentTraders = data['data'];
     console.log(currentTraders);
 
     for (i = 0; i < (currentTraders.length); i++){
@@ -58,21 +51,28 @@ function build_results_table(data) {
         current = currentTraders[i];
 
         market_pair = current['market'];
-        overall = current['traderStats']['overall'];
 
-        var short_stats_string = '';
         var long_stats_string = '';
+        var short_stats_string = '';
 
-        if (current['tradeInfo']['long_order_type']['S'] == null){
-            long_stats_string  = `Long BUY | Type:${current['tradeInfo']['long_order_type']['B']} | Status:${current['tradeInfo']['long_order_status']['B']} | Buy Price:${current['tradeInfo']['buy_price']['long']}`;
-        } else if (current['tradeInfo']['long_order_type']['S'] != null) {
-            long_stats_string  = `Long SELL | Type:${current['tradeInfo']['long_order_type']['S']} | Status:${current['tradeInfo']['long_order_status']['S']} | Buy Price:${current['tradeInfo']['buy_price']['long']} | Sell Price:${current['tradeInfo']['sell_price']['long']}`;
+        if (current['long_position'] != null) {
+            var long_pos = current['long_position'];
+
+            if (long_pos['order_type']['S'] == null){
+                long_stats_string  = `Long BUY | Type:${long_pos['order_type']['B']} | Status:${long_pos['order_status']['B']} | Buy Price:${long_pos['buy_price']}`;
+            } else if (long_pos['order_type']['S'] != null) {
+                long_stats_string  = `Long SELL | Type:${long_pos['order_type']['S']} | Status:${long_pos['order_status']['S']} | Buy Price:${long_pos['buy_price']} | Sell Price:${long_pos['sell_price']}`;
+            }
         }
 
-        if (current['tradeInfo']['short_order_type']['S'] == null){
-            short_stats_string  = `Short BUY | Type:${current['tradeInfo']['short_order_type']['B']} | Status:${current['tradeInfo']['short_order_status']['B']} | Buy Price:${current['tradeInfo']['buy_price']['short']}`;
-        } else if (current['tradeInfo']['short_order_type']['S'] != null) {
-            short_stats_string  = `Short SELL | Type:${current['tradeInfo']['short_order_type']['S']} | Status:${current['tradeInfo']['short_order_status']['S']} | Buy Price:${current['tradeInfo']['buy_price']['short']} | Sell Price:${current['tradeInfo']['sell_price']['short']}`;
+        if (current['short_position'] != null) {
+            var short_pos = current['long_position'];
+            
+            if (short_pos['order_type']['S'] == null){
+                short_stats_string  = `Long BUY | Type:${short_pos['order_type']['B']} | Status:${short_pos['order_status']['B']} | Buy Price:${short_pos['buy_price']}`;
+            } else if (short_pos['order_type']['S'] != null) {
+                short_stats_string  = `Long SELL | Type:${short_pos['order_type']['S']} | Status:${short_pos['order_status']['S']} | Buy Price:${short_pos['buy_price']} | Sell Price:${short_pos['sell_price']}`;
+            }
         }
 
         if (short_stats_string != '') {
@@ -85,9 +85,26 @@ function build_results_table(data) {
         buttonPause     = `<a href=# class="small-button amber-button" onclick="pause_trader(event, '${market_pair}');">Pause</a>`;
         buttonRemove    = `<a href=# class="small-button red-button" onclick="delete_trader(event, '${market_pair}');">Remove</a>`;
 
+        long_total = 0;
+        short_total = 0;
+        long_trades = 0;
+        short_trades = 0;
+
+        tlist = current['trade_record'];
+
+        for (x=0;x<tlist.length;x++){
+            if (tlist[x][5] == 'LONG'){
+                long_total += tlist[x][4]
+                long_trades +=1
+            } else {
+                short_total += tlist[x][4]
+                short_trades += 1
+            }
+        }
+
         row.innerHTML   = `
             <td id="market-pair">${market_pair}</td>
-            <td id="main-data">State: ${current['traderStats']['runtime_state']} | Trades: L:${current['traderStats']['#Trades']['long']}, S:${current['traderStats']['#Trades']['short']} | Overall: L:${Math.round(current['traderStats']['overall']['long']*100000000)/100000000}, S:${Math.round(current['traderStats']['overall']['short']*100000000)/100000000} | Last Update: ${current['traderStats']['last_update_time']} | Last Price: ${current['prices']['lastPrice']}<br>
+            <td id="main-data">State: ${current['state_data']['runtime_state']} | Trades: L:${long_trades}, S:${short_trades} | Overall: L:${Math.round(long_total*100000000)/100000000}, S:${Math.round(short_total*100000000)/100000000} | Last Update: ${current['state_data']['last_update_time']} | Last Price: ${current['market_prices']['lastPrice']}<br>
             ${total_price_string}</td>
             <td id="remove-button">${buttonStart} ${buttonPause} ${buttonRemove}</td>
             `;

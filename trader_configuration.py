@@ -25,13 +25,15 @@ def technical_indicators(candles):
     return(indicators)
 
 
-def other_conditions(custom_conditional_data, trade_information, candles, indicators, symbol, btc_base):
+def other_conditions(custom_conditional_data, position_information, position_type, candles, indicators, symbol, btc_base):
     custom_conditional_data = custom_conditional_data
-    can_trade_long = True
-    can_trade_short = True
+    can_order = True
 
-    trade_information.update({'can_order':{'short':can_trade_short,'long':can_trade_long}})
-    return(custom_conditional_data, trade_information)
+    if position_information['market_status'] == 'COMPLETE_TRADE':
+        position_information['market_status'] = 'TRADING'
+
+    position_information.update({'can_order':can_order})
+    return(custom_conditional_data, position_information)
 
 
 def long_exit_conditions(custom_conditional_data, trade_information, indicators, prices, candles, symbol, btc_base):
@@ -41,10 +43,7 @@ def long_exit_conditions(custom_conditional_data, trade_information, indicators,
     stop loss orders = STOP_LOSS_LIMIT
     market orders = MARKET
     '''
-    price = side = description = ptype = None
-    orderType = 'WAIT'
-
-    ## Set the indicators used to test the conditions:
+    ## Set the indicators used for sell conditions:
     macd = indicators['MACD']
 
     ## Logic for SELL conditions.
@@ -57,15 +56,26 @@ def long_exit_conditions(custom_conditional_data, trade_information, indicators,
     return({'order_type':'WAIT'})
 
 
+    '''if trade_information['long_order_type']['S'] == 'STOP_LOSS':
+        return
+
+    #price = float('{0:.{1}f}'.format((trade_information['buy_price']['long']-(trade_information['buy_price']['long']*0.01)), pRounding))
+    price = float('{0:.{1}f}'.format(boll[1]['B'], pRounding))
+    return({'order_type':'STOP_LOSS', 
+            'side':'SELL', 
+            'price':price,
+            'stopPrice':price,
+            'description':'Long exit stop-loss', 
+            'ptype':'STOP_LOSS_LIMIT'})'''
+    return({'order_type':'WAIT'})
+
+
 def long_entry_conditions(custom_conditional_data, trade_information, indicators, prices, candles, symbol, btc_base):
     '''
     The current order types that are supported are
     limit orders = LIMIT
     market orders = MARKET
     '''
-    price = side = description = ptype = None
-    orderType = 'WAIT'
-
     ## Set the indicators used to test the conditions:
     macd = indicators['MACD']
 

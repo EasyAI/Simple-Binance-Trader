@@ -16,87 +16,154 @@ import trader_configuration as TC
 ## Base commission fee with binance.
 COMMISION_FEE = 0.00075
 
+## Supported market.
+SUPPORTED_MARKETS = ['SPOT', 'MARKET']
+
+## Base layout used by the trader.
+BASE_MARKET_LAYOUT = {
+    'can_order':True,       # If the bot is able to trade in the current market.
+    'buy_price':0.0,        # The price related to BUY.
+    'sell_price':0.0,       # The price related to SELL.
+    'buy_time':0,           # Time of when the trader bought.
+    'market_status':None,   # The current status tied to the trader.
+    'currency_left':0.0,    # The amount of currenty left from the base.
+    'tokens_holding':0.0,   # Amount of tokens being held.
+    'current_stage':0,      # User to inform about the current order stage.
+    'order_id':             # The ID that is tied to the placed order.
+        {'B':None,'S':None},
+    'order_type':           # The type of the order that is placed
+        {'B':'WAIT', 'S':None},
+    'order_status':         # The status of the current order.
+        {'B':None, 'S':None},
+    'order_description':    # The description of the order.
+        {'B':None, 'S':None}
+}
+
+## Market extra required data.
+TYPE_MARKET_EXTRA = {
+    'loan_cost':0,
+    'loan_id':None,
+}
+
+
 class BaseTrader(object):
 
-    def __init__(self, base_asset, quote_asset, filters, socket_api, rest_api):
+    def __init__(self, quote_asset, base_asset, rest_api, socket_api=None, data_if=None, logs_dir=None):
         '''
-        Initilise the trader object and all of the atributes that are required for it to be run.
-
-        -> Initilize Data Objects.
-            Initilize all the data objects that will be required to track and monitor the trader.
+        Initilize the trader object and setup all the dataobjects that will be used by the trader object.
         '''
         symbol = '{0}{1}'.format(base_asset, quote_asset)
 
-        logging.info('[BaseTrader] Initilizing trader object for market {0}.'.format(symbol))
+        ## Easy printable format for market symbol.
+        self.print_pair = '{0}-{1}'.format(quote_asset, base_asset)
+        self.quote_asset = quote_asset
+        self.base_asset = base_asset
 
-        # Sets the rest api that will be used by the trader.
+        logging.info('[BaseTrader][{0}] Initilizing trader object and empty attributes.'.format(self.print_pair))
+
+        ## Sets the rest api that will be used by the trader.
         self.rest_api = rest_api
-        self.socket_api = socket_api
+
+        if socket_api == None and data_if == None:
+            logging.critical('[BaseTrader][{0}] Initilization failed, bot must have either socket_api OR data_if set.'.format(self.print_pair))
+            return
+
+        if socket_api:
+            self.candle_enpoint = socket_api.get_live_candles
+            self.depth_endpoint = socket_api.get_live_depths
+            self.socket_api = socket_api
+            self.data_if = None
+        else:
+            self.socket_api = None
+            self.data_if = data_if
+            self.candle_enpoint = data_if.get_candle_data
+            self.depth_endpoint = data_if.get_depth_data
+
+        ## Setup the default path for the trader by market beeing traded.
+        if logs_dir != None:
+            self.orders_log_path = '{0}order_{1}_log.txt'.format(logs_dir, symbol)
+
+        ## Configuration settings are held here:
+        self.configuration = {}
         
-        # Holds the trade indicators.
-        self.indicators = {}
+        ## Market price action is held here:
+        self.market_prices = {}
 
-        self.orders_log_path = 'order_log.txt'
+        ## Wallet data is stored here:
+        self.wallet_pair = None
 
-        # Force sell is set if a active trade is found on script reset.
-        self.force_sell = False
-
-        self.run_type       = None
-        self.market_type    = None
-
-        # Holds the current symbolic pair of the market being traded.
-        self.btc_base_pair  = True if base_asset == 'BTC' else False
-        self.print_pair     = '{0}-{1}'.format(quote_asset, base_asset)
-        self.symbol         = symbol
-        self.quote_asset    = quote_asset
-        self.base_asset     = base_asset
-
-        self.trade_only_one = True
-        
-        # Holds current market information.
-        self.prices = {
-            'lastPrice':0,   # Last price.
-            'askPrice':0,    # Ask price.
-            'bidPrice':0}    # Bid price.
-
+        ## Custom conditional parameters are held here:
         self.custom_conditional_data = {}
 
-        self.trade_information = {
-            'loan_cost':{'long':False, 'short':False},
-            'loan_id':{'long':False, 'short':False},
-            'can_order':{'long':False, 'short':False},
-            'buy_price':{'long':0, 'short':0},          # 'buy_price' this holds the buy price for the bot.
-            'sell_price':{'long':0, 'short':0},         # 'sell_price' this holds the sell price of the bot. 
-            'long_order_type':{'B':'WAIT', 'S':None},   # B/S will represent BUY/SELL or entry/exit.
-            'long_order_status':{'B':None, 'S':None},   # 
-            'long_order_desc':{'B':None, 'S':None},     #
-            'long_order_id':{'B':None,'S':None},        #
-            'short_order_type':{'B':'WAIT', 'S':None},  # 
-            'short_order_status':{'B':None, 'S':None},  #
-            'short_order_desc':{'B':None, 'S':None},    #
-            'short_order_id':{'B':None,'S':None},       #
-            'market_states':{'long':None, 'short':None} #
-        }
+        # Here the indicators are stored.
+        self.indicators = {}
 
-        # Holds information on current/past trades of the trader.
-        self.trader_stats = {
-            'wallet_pair':None,
-            'last_update_time':0,
-            'runtime_state':'STOP',
-            'base_mac':0,                           #
-            'buy_time': {'long':0, 'short':0},       #
-            'currency_left':{'long':0, 'short':0},  # 'currency_left' this holds the currency the bot has left to trade.
-            'tester_quantity':{'long':0, 'short':0},# 
-            'tokens_holding':{'long':0, 'short':0}, # 'tokens_holding' this holds the base tokens bought.
-            '#Trades':{'long':0, 'short':0},        # '#Trades' this holds the number of FULL trades made by this market.
-            'overall':{'long':0, 'short':0}         # 'overall' this holds the overall outcomes for this markets trades.
-        }        
+        ## Here long market activity is recorded:
+        self.long_position = {}
 
-        # Holds the rules required for the market.
-        self.rules = filters
+        ## Here short market activity is recorded:
+        self.short_position = {}
+
+        ## Here all buy/sell trades will be stored
+        self.trade_recorder = []
+
+        ## Data thats used to inform about the trader:
+        self.state_data = {}
+
+        ## Market rules are set here:
+        self.rules = {}
+
+        logging.debug('[BaseTrader][{0}] Initilized trader object.'.format(self.print_pair))
 
 
-    def start(self, market_type, run_type, MAC, wallet_pair, reload_settings=False, open_orders=None):
+    def setup_initial_values(self, market_type, run_type, filters):
+        '''
+        Initilize the values for all of the trader objects.
+        '''
+        logging.info('[BaseTrader][{0}] Initilizing trader object attributes with data.'.format(self.print_pair))
+
+        symbol = '{0}{1}'.format(self.base_asset, self.quote_asset)
+
+        btc_base_pair = True if self.base_asset == 'BTC' else False
+
+        ## Set intial values for the trader configuration.
+        self.configuration.update({
+            'market_type':market_type,
+            'run_type':run_type,
+            'trade_only_one':True,
+            'base_asset':self.base_asset,
+            'quote_asset':self.quote_asset,
+            'symbol':symbol,
+            'btc_base_pair':btc_base_pair
+        })
+
+        ## Set initial values for market price.
+        self.market_prices.update({
+            'lastPrice':0,
+            'askPrice':0,
+            'bidPrice':0
+        })
+
+        ## Set initial values for state data.
+        self.state_data.update({
+            'base_mac':0.0,         # The base mac value used as referance.
+            'force_sell':False,     # If the trader should dump all tokens.
+            'runtime_state':None,   # The state that actual trader object is at.
+            'last_update_time':0    # The last time a full look of the trader was completed.
+        })
+
+        self.rules.update(filters)
+
+        self.long_position.update(BASE_MARKET_LAYOUT)
+
+        if market_type == 'MARGIN':
+            self.short_position.update(BASE_MARKET_LAYOUT, TYPE_MARKET_EXTRA)
+            self.long_position.update(TYPE_MARKET_EXTRA)
+
+        logging.debug('[BaseTrader][{0}] Initilized trader attributes with data.'.format(self.print_pair))
+
+
+    def start(self, MAC, wallet_pair):
         '''
         Start the trader.
         Requires: MAC (Max Allowed Currency, the max amount the trader is allowed to trade with in BTC).
@@ -107,27 +174,23 @@ class BaseTrader(object):
         ->  Start the trader thread. 
             Once all is good the trader will then start the thread to allow for the market to be monitored.
         '''
-        logging.debug('[BaseTrader] Starting trader {0}.'.format(self.print_pair))
+        logging.info('[BaseTrader][{0}] Starting the trader object.'.format(self.print_pair))
         sock_symbol = self.base_asset+self.quote_asset
 
-        while True:
-            if self.socket_api.get_live_candles()[sock_symbol] and ('a' in self.socket_api.get_live_depths()[sock_symbol]):
-                break
+        if self.socket_api != None:
+            while True:
+                if self.socket_api.get_live_candles(sock_symbol) and ('a' in self.socket_api.get_live_depths(sock_symbol)):
+                    break
 
-        self.run_type                       = run_type
-        self.market_type                    = market_type
-        self.trader_stats['runtime_state']  = 'SETUP'
-        self.trader_stats['wallet_pair']    = wallet_pair
+        self.state_data['runtime_state'] = 'SETUP'
+        self.wallet_pair = wallet_pair
+        self.state_data['base_mac'] = float(MAC)
         
-        if not(reload_settings):
-            MAC = float(MAC)
-
-        self.trader_stats['base_mac']               = MAC
-        self.trader_stats['currency_left']['long']  = MAC
-        self.trader_stats['currency_left']['short'] = MAC
+        self.long_position['currency_left'] = float(MAC)
+        if self.short_position != {}:
+            self.short_position['currency_left'] = float(MAC)
 
         ## Start the main of the trader in a thread.
-        logging.debug('[BaseTrader] Starting trader main thread {0}.'.format(self.print_pair))
         trader_thread = threading.Thread(target=self._main)
         trader_thread.start()
         return(True)
@@ -140,20 +203,20 @@ class BaseTrader(object):
         -> Trader cleanup.
             To gracefully stop the trader and cleanly eliminate the thread as well as market orders.
         '''
-        logging.debug('[BaseTrader] Stopping trader {0}.'.format(self.print_pair))
+        logging.debug('[BaseTrader][{0}] Stopping trader.'.format(self.print_pair))
 
-        if self.trade_information['order_type']['S'] == None:
-            self.trade_information['order_status']['B'] = 'FORCE_PREVENT_BUY'
+        if self.long_position['order_type']['S'] == None:
+            self.long_position['order_status']['B'] = 'FORCE_PREVENT_BUY'
 
-            while True:
-                if self.trade_information['order_type']['S'] == None:
-                    break
-                time.sleep(10)
+        if self.short_position['order_type']['S'] == None:
+            self.short_position['order_status']['B'] = 'FORCE_PREVENT_BUY'
 
-        else:
-            self.rest_api.cancel_open_orders('ALL', self.symbol)
+        while True:
+            if self.long_position['order_type']['S'] == None and self.short_position['order_type']['S'] == None:
+                break
+            time.sleep(10)
 
-        self.trader_stats['runtime_state'] = 'STOP'
+        self.state_data['runtime_state'] = 'STOP'
         return(True)
 
 
@@ -176,85 +239,87 @@ class BaseTrader(object):
         sock_symbol = self.base_asset+self.quote_asset
         last_wallet_update_time = 0
 
-        if self.market_type == 'SPOT':
-            market_types = ['long']
-        elif self.market_type  == 'MARGIN':
-            market_types = ['long', 'short']
+        if self.configuration['market_type'] == 'SPOT':
+            position_types = ['LONG']
+        elif self.configuration['market_type'] == 'MARGIN':
+            position_types = ['LONG', 'SHORT']
 
-        while self.trader_stats['runtime_state'] != 'STOP':
+        while self.state_data['runtime_state'] != 'STOP':
             ## Call the update function for the trader.
-            candles = self.socket_api.get_live_candles()[sock_symbol]
-            books_data = self.socket_api.get_live_depths()[sock_symbol]
+            candles = self.candle_enpoint(sock_symbol)
+            books_data = self.depth_endpoint(sock_symbol)
             indicators = TC.technical_indicators(candles)
             self.indicators = indicators
-            logging.debug('[BaseTrader] Collected trader data from socket. [{0}]'.format(self.print_pair))
+            logging.debug('[BaseTrader][{0}] Collected trader data.'.format(self.print_pair))
 
-            socket_buffer_global = self.socket_api.socketBuffer
+            if self.configuration['run_type'] == 'REAL':
+                socket_buffer_global = self.socket_api.socketBuffer
 
-            if sock_symbol in self.socket_api.socketBuffer:
-                socket_buffer_symbol = self.socket_api.socketBuffer[sock_symbol]
-            else:
-                socket_buffer_symbol = None
+                if sock_symbol in self.socket_api.socketBuffer:
+                    socket_buffer_symbol = self.socket_api.socketBuffer[sock_symbol]
+                else:
+                    socket_buffer_symbol = None
 
-            if self.run_type == 'REAL':
                 ## Pull account balance data via the SPOT user data stream endpoint to update wallet pair information.
                 if 'outboundAccountInfo' in socket_buffer_global:
                     if last_wallet_update_time != socket_buffer_global['outboundAccountInfo']['E']:
-                        self.trader_stats['wallet_pair'], last_wallet_update_time = self.update_wallets(socket_buffer_global)
+                        self.wallet_pair, last_wallet_update_time = self.update_wallets(socket_buffer_global)
+            else:
+                socket_buffer_symbol = None
                             
-            self.prices = {
+            self.market_prices = {
                 'lastPrice':candles[0][4],
                 'askPrice':books_data['a'][0][0],
                 'bidPrice':books_data['b'][0][0]}
 
-            if not self.trader_stats['runtime_state'] in ['STANDBY', 'FORCE_STANDBY', 'FORCE_PAUSE']:
+            if not self.state_data['runtime_state'] in ['STANDBY', 'FORCE_STANDBY', 'FORCE_PAUSE', 'SETUP']:
                 ## Call for custom conditions that can be used for more advanced managemenet of the trader.
-                self.custom_conditional_data, self.trade_information = TC.other_conditions(
-                    self.custom_conditional_data, 
-                    self.trade_information, 
-                    candles,
-                    indicators, 
-                    self.print_pair,
-                    self.btc_base_pair)
 
-                for market_type in market_types:
+                for ptype in position_types:
+                    self.custom_conditional_data, cp = TC.other_conditions(
+                        self.custom_conditional_data, 
+                        self.long_position if ptype == 'LONG' else self.short_position,
+                        ptype,
+                        candles,
+                        indicators, 
+                        self.configuration['symbol'],
+                        self.configuration['btc_base_pair'])
+
                     ## logic to force only short or long to be activly traded, both with still monitor passivly tho.
-                    if self.trade_only_one:
-                        if (self.trade_information['long_order_type']['B'] != 'WAIT' or self.trade_information['long_order_type']['S'] != None) and market_type == 'short':
+                    if self.configuration['trade_only_one'] and self.configuration['market_type'] == 'MARGIN':
+                        if (self.long_position['order_type']['B'] != 'WAIT' or self.long_position['order_type']['S'] != None) and ptype == 'SHORT':
                             continue
-                        elif (self.trade_information['short_order_type']['B'] != 'WAIT' or self.trade_information['short_order_type']['S'] != None) and market_type == 'long':
+                        elif (self.short_position['order_type']['B'] != 'WAIT' or self.short_position['order_type']['S'] != None) and ptype == 'LONG':
                             continue
 
-                    logging.debug('[BaseTrader] {0} Checking for {1}'.format(self.print_pair, market_type))
+                    logging.debug('[BaseTrader][{0}] Checking for {1}'.format(self.print_pair, ptype))
 
                     ## For managing active orders.
-                    if socket_buffer_symbol != None or self.run_type == 'TEST':
-                        self._order_status_manager(market_type, socket_buffer_symbol)
+                    if socket_buffer_symbol != None or self.configuration['run_type'] == 'TEST':
+                        cp = self._order_status_manager(ptype, cp, socket_buffer_symbol)
 
                     ## For managing the placement of orders/condition checking.
-                    if self.trade_information['can_order'][market_type] == True:
-                        if self.trader_stats['runtime_state'] == 'RUN' and self.trade_information['market_states'][market_type] == 'TRADING':
-                            self._trade_manager(market_type, indicators, candles)
+                    if cp['can_order'] == True:
+                        if self.state_data['runtime_state'] == 'RUN' and cp['market_status'] == 'TRADING':
+                            tm_data = self._trade_manager(ptype, cp, indicators, candles)
+                            cp = tm_data if tm_data else cp
 
-                        if self.trade_information['market_states'][market_type] == 'COMPLETE_TRADE':
-                            self.trade_information['market_states'][market_type] = 'TRADING'
+                    if not cp['market_status']: 
+                        cp['market_status'] = 'TRADING'
 
-                    if self.trader_stats['runtime_state'] == 'SETUP':
-                        self.trade_information['market_states'][market_type] = 'TRADING'
+                    if ptype == 'long': self.long_position = cp
+                    else: self.short_position = cp
 
-                    time.sleep(0.2)
+                    time.sleep(.8)
 
             current_localtime = time.localtime()
-            self.trader_stats['last_update_time'] = '{0}:{1}:{2}'.format(current_localtime[3], current_localtime[4], current_localtime[5])
+            self.state_data['last_update_time'] = '{0}:{1}:{2}'.format(current_localtime[3], current_localtime[4], current_localtime[5])
 
-            if self.trader_stats['runtime_state'] == 'SETUP':
-                self.trader_stats['runtime_state'] = 'RUN'
-
-            if self.run_type == 'REAL':
-                pass
+            if self.state_data['runtime_state'] == 'SETUP':
+                self.state_data['runtime_state'] = 'RUN'
         
 
-    def _order_status_manager(self, market_type, socket_buffer_symbol):
+    def _order_status_manager(self, ptype, cp, socket_buffer_symbol):
         '''
         This is the manager for all and any active orders.
 
@@ -264,142 +329,135 @@ class BaseTrader(object):
         -> Monitor trade outcomes.
             Monitor and note down the outcome of trades for keeping track of progress.
         '''
-        current_order_type = '{0}_order_type'.format(market_type)
-        current_order_desc = '{0}_order_desc'.format(market_type)
-        current_order_id = '{0}_order_id'.format(market_type)
-        current_order_status = '{0}_order_status'.format(market_type)
-
         active_trade = False
-        if self.run_type == 'REAL':
+        trade_done = False
+        
+        if self.configuration['run_type'] == 'REAL':
             # Manage order reports sent via the socket.
             if 'executionReport' in socket_buffer_symbol:
                 order_seen = socket_buffer_symbol['executionReport']
-                tInfo = self.trade_information
-                all_active_orders = [tInfo['long_order_id']['B'], tInfo['long_order_id']['S'], tInfo['short_order_id']['B'], tInfo['short_order_id']['S']]
+
+                all_active_orders = [self.long_position['order_id']['B'], self.long_position['order_id']['S']]
+                if self.configuration['market_type'] == 'MARGIN':
+                    all_active_orders+=[self.short_position['order_id']['B'], self.short_position['order_id']['S']]
 
                 if not(order_seen['i'] in all_active_orders):
                     # Blocked is used to allow force buys.
-                    if market_type == 'long':
+                    if ptype == 'LONG':
                         active_trade = True
                 else:
                     # Manage trader placed orders via order ID's to prevent order conflict.
-                    all_mt_trades = [tInfo[current_order_id]['B'], tInfo[current_order_id]['S']]
+                    all_mt_trades = [cp['order_id']['B'], cp['order_id']['S']]
                     if order_seen['i'] in all_mt_trades:
                         active_trade = True
         else:
             # Basic update for test orders.
-            if self.trade_information[current_order_status]['B'] == 'PLACED' or self.trade_information[current_order_status]['S'] == 'PLACED':
+            if cp['order_status']['B'] == 'PLACED' or cp['order_status']['S'] == 'PLACED':
                 active_trade = True
                 order_seen = None
 
         if active_trade:
             # Determine the current state of an order.
-            tInfo = self.trade_information
-            side = 'BUY' if tInfo[current_order_type]['S'] == None else 'SELL'
-            trade_done, tokens_bought = self._check_active_trade(side, market_type, order_seen)
-        else:
-            return
+            side = 'BUY' if cp['order_type']['S'] == None else 'SELL'
+            cp, trade_done, tokens_bought = self._check_active_trade(side, ptype, cp, order_seen)
 
         ## Monitor trade outcomes.
         if trade_done:
-            if self.run_type == 'REAL':
-                print(order_seen)
             print('Finished {0} trade for {1}'.format(side, self.print_pair))
 
             if side == 'BUY':
                 # Here all the necissary variables and values are added to signal a completion on a buy trade.
-                self.trader_stats['tokens_holding'][market_type] = tokens_bought
-                self.trader_stats['buy_time'][market_type] = time.time()
-                self._setup_sell(market_type)
-
-                logging.info('[BaseTrader] Completed buy order. [{0}]'.format(self.print_pair))
+                cp['tokens_holding'] = tokens_bought
+                cp['buy_time'] = time.time()
+                logging.info('[BaseTrader][{0}] Completed buy order.'.format(self.print_pair))
 
             elif side == 'SELL':
                 # Here all the necissary variables and values are added to signal a completion on a sell trade.
-                tokens_holding = self.trader_stats['tokens_holding'][market_type]
+                tokens_holding = cp['tokens_holding']
                 fee = tokens_holding*COMMISION_FEE
 
                 sellTime = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
-                buyTime = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.trader_stats['buy_time'][market_type]))
+                buyTime = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(cp['buy_time']))
 
-                if market_type == 'short':
-                    if self.run_type == 'REAL':
-                        loan_repay_result = self.rest_api.repay_loan(asset=self.base_asset, amount=self.trade_information['loan_cost'][market_type])
+                if self.configuration['market_type']  == 'MARGIN':
+                    if self.configuration['run_type'] == 'REAL' and cp['loan_cost'] != 0:
+                        loan_repay_result = self.rest_api.repay_loan(asset=self.base_asset, amount=cp['loan_cost'])
 
                 if self.rules['isFiat'] == True and self.rules['invFiatToBTC']:
-                    outcome = float('{0:.8f}'.format(((tInfo['sell_price'][market_type]-tInfo['buy_price'][market_type])*(tokens_holding/tInfo['sell_price'][market_type]))))
+                    outcome = float('{0:.8f}'.format(((cp['sell_price']-cp['buy_price'])*(tokens_holding/cp['sell_price']))))
                 else: 
-                    outcome = float('{0:.8f}'.format(((tInfo['sell_price'][market_type]-tInfo['buy_price'][market_type])*tokens_holding)))
+                    outcome = float('{0:.8f}'.format(((cp['sell_price']-cp['buy_price'])*tokens_holding)))
 
-                with open(self.orders_log_path, 'a') as file:
-                    buyResp = 'marketType:{3}, Buy order, price: {0:.8f}, time: {1} [{2}] | '.format(tInfo['buy_price'][market_type], buyTime, tInfo[current_order_desc]['B'], market_type)
-                    sellResp = 'Sell order, price: {0:.8f}, time: {1} [{2}], outcome: {3:.8f} [{4}]'.format(tInfo['sell_price'][market_type], sellTime, tInfo[current_order_desc]['S'], outcome, self.symbol)
-                    file.write(buyResp+sellResp+'\n')
-                    file.close()
+                print(self.orders_log_path)
 
-                self.trader_stats['overall'][market_type] += outcome
-                self.trader_stats['#Trades'][market_type] += 1
+                if self.orders_log_path != None:
+                    with open(self.orders_log_path, 'a') as file:
+                        buyResp = 'marketType:{3}, Buy order, price: {0:.8f}, time: {1} [{2}] | '.format(cp['buy_price'], buyTime, cp['order_description']['B'], ptype)
+                        sellResp = 'Sell order, price: {0:.8f}, time: {1} [{2}], outcome: {3:.8f} [{4}]'.format(cp['sell_price'], sellTime, cp['order_description']['S'], outcome, self.configuration['symbol'])
+                        file.write(buyResp+sellResp+'\n')
+                        file.close()
 
-                self._setup_buy(market_type)
-                self.trade_information['market_states'][market_type] = 'COMPLETE_TRADE'
-                logging.info('[BaseTrader] Completed sell order. [{0}]'.format(self.print_pair))
+                self.trade_recorder.append([cp['buy_price'], buyTime, cp['sell_price'], sellTime, outcome, ptype])
+
+                cp['market_status'] = 'COMPLETE_TRADE'
+                logging.info('[BaseTrader][{0}] Completed sell order.'.format(self.print_pair))
+            return(self._setup_market(side, cp))
+        else:
+            return(cp)
 
 
-    def _check_active_trade(self, side, market_type, order_seen):
-        tInfo = self.trade_information
+    def _check_active_trade(self, side, ptype, cp, order_seen):
         trade_done = False
         tokens_bought = None
-        current_order_status = '{0}_order_status'.format(market_type)
             
         if side == 'BUY':
-            if self.run_type == 'REAL':
-                if order_seen['S'] == 'BUY' or (market_type == 'short' and order_seen['S'] == 'SELL'):
-                    self.trade_information['buy_price'][market_type] = float(order_seen['L'])
+            if self.configuration['run_type'] == 'REAL':
+                if order_seen['S'] == 'BUY' or (ptype == 'SHORT' and order_seen['S'] == 'SELL'):
+                    cp['buy_price'] = float(order_seen['L'])
 
-                    if market_type == 'long':
+                    if ptype == 'LONG':
                         target_wallet = self.base_asset
                         target_quantity = float(order_seen['q'])
-                    elif market_type == 'short':
+                    elif ptype == 'SHORT':
                         target_wallet = self.quote_asset
                         target_quantity = float(order_seen['q'])*float(order_seen['L'])
 
-                    if order_seen['X'] == 'FILLED' and target_wallet in self.trader_stats['wallet_pair']:
-                        wallet_pair = self.trader_stats['wallet_pair']
+                    if order_seen['X'] == 'FILLED' and target_wallet in self.wallet_pair:
+                        wallet_pair = self.wallet_pair
                         if wallet_pair[target_wallet][0] >= target_quantity:
                             trade_done = True
                             tokens_bought = wallet_pair[self.base_asset][0]
-                    elif order_seen['X'] == 'PARTIALLY_FILLED' and tInfo[current_order_status]['B'] != 'LOCKED':
-                        self.trade_information[current_order_status]['B'] = 'LOCKED'
+                    elif order_seen['X'] == 'PARTIALLY_FILLED' and cp['order_status']['B'] != 'LOCKED':
+                        cp['order_status']['B'] = 'LOCKED'
             else:
-                if market_type == 'long':
-                    if tInfo['buy_price'][market_type] <= self.prices['lastPrice']:
+                if ptype == 'LONG':
+                    if cp['buy_price'] <= self.market_prices['lastPrice']:
                         trade_done = True
-                        tokens_bought = self.trader_stats['tester_quantity'][market_type]
-                elif market_type == 'short':
-                    if tInfo['buy_price'][market_type] >= self.prices['lastPrice']:
+                        tokens_bought = cp['tokens_holding']
+                elif ptype == 'SHORT':
+                    if cp['buy_price'] >= self.market_prices['lastPrice']:
                         trade_done = True
-                        tokens_bought = self.trader_stats['tester_quantity'][market_type]
+                        tokens_bought = cp['tokens_holding']
 
         elif side == 'SELL':
-            if self.run_type == 'REAL':
-                if order_seen['S'] == 'SELL' or (market_type == 'short' and order_seen['S'] == 'BUY'):
-
+            if self.configuration['run_type'] == 'REAL':
+                if order_seen['S'] == 'SELL' or (ptype == 'SHORT' and order_seen['S'] == 'BUY'):
                     if order_seen['X'] == 'FILLED':
-                        self.trade_information['sell_price'][market_type] = float(order_seen['L'])
+                        cp['sell_price'] = float(order_seen['L'])
                         trade_done = True
-                    elif order_seen['X'] == 'PARTIALLY_FILLED' and tInfo[current_order_status]['S'] != 'LOCKED':
-                        self.trade_information[current_order_status]['S'] = 'LOCKED'
+                    elif order_seen['X'] == 'PARTIALLY_FILLED' and cp['order_status']['S'] != 'LOCKED':
+                        cp['order_status']['S'] = 'LOCKED'
             else:
-                if market_type == 'long':
-                    if tInfo['sell_price'][market_type] >= self.prices['lastPrice']:
+                if ptype == 'LONG':
+                    if cp['sell_price'] >= self.market_prices['lastPrice']:
                         trade_done = True
-                elif market_type == 'short':
-                    if tInfo['sell_price'][market_type] <= self.prices['lastPrice']:
+                elif ptype == 'SHORT':
+                    if cp['sell_price'] <= self.market_prices['lastPrice']:
                         trade_done = True
-        return(trade_done, tokens_bought)
+        return(cp, trade_done, tokens_bought)
 
 
-    def _trade_manager(self, market_type, indicators, candles):
+    def _trade_manager(self, ptype, cp, indicators, candles):
         ''' 
         Here both the sell and buy conditions are managed by the trader.
 
@@ -412,36 +470,22 @@ class BaseTrader(object):
         -> Place Market Order.
             Place orders on the market with real and assume order placemanet with test.
         '''
-        tInfo = self.trade_information
         updateOrder = False
         order = None
-        current_order_type = '{0}_order_type'.format(market_type)
-        current_order_status = '{0}_order_status'.format(market_type)
-        current_order_desc = '{0}_order_desc'.format(market_type)
-        current_order_id = '{0}_order_id'.format(market_type)
 
-        if tInfo[current_order_type]['S'] and tInfo[current_order_status]['S'] != 'LOCKED':
+        if cp['order_type']['S'] and cp['order_status']['S'] != 'LOCKED':
             ## Manage SELL orders/check conditions.
-            logging.debug('[BaseTrader] Checking for Sell condition. [{0}]'.format(self.print_pair))
+            logging.debug('[BaseTrader][{0}] Checking for Sell condition.'.format(self.print_pair))
+            exit_conditions = TC.long_exit_conditions if ptype == 'LONG' else TC.short_exit_conditions
 
-            if market_type == 'long':
-                new_order = TC.long_exit_conditions(
-                    self.custom_conditional_data,
-                    tInfo,
-                    indicators, 
-                    self.prices,
-                    candles,
-                    self.print_pair,
-                    self.btc_base_pair)
-            elif market_type == 'short':
-                new_order = TC.short_exit_conditions(
-                    self.custom_conditional_data,
-                    tInfo,
-                    indicators, 
-                    self.prices,
-                    candles,
-                    self.print_pair,
-                    self.btc_base_pair)
+            new_order = exit_conditions(
+                self.custom_conditional_data,
+                cp,
+                indicators, 
+                self.market_prices,
+                candles,
+                self.print_pair,
+                self.configuration['btc_base_pair'])
 
             if not(new_order):
                 return
@@ -449,8 +493,8 @@ class BaseTrader(object):
             orderType = new_order['order_type']
 
             if orderType != 'WAIT':
-                self.trade_information[current_order_desc]['S'] = new_order['description']
-                if self.run_type == 'TEST' and new_order['ptype'] == 'MARKET':
+                cp['order_description']['S'] = new_order['description']
+                if self.configuration['run_type'] == 'TEST' and new_order['ptype'] == 'MARKET':
                     updateOrder = True
                 elif 'price' in new_order:
                     if 'price' in new_order:
@@ -458,10 +502,10 @@ class BaseTrader(object):
                         if 'stopPrice' in new_order:
                             new_order['stopPrice'] = '{0:.{1}f}'.format(float(new_order['stopPrice']), self.rules['TICK_SIZE'])
                     
-                    if float(new_order['price']) != float(tInfo['sell_price'][market_type]):
+                    if float(new_order['price']) != float(cp['sell_price']):
                         updateOrder = True
 
-            if self.trade_information[current_order_type]['S'] != orderType or updateOrder:
+            if cp['order_type']['S'] != orderType or updateOrder:
                 if orderType == 'SIGNAL':
                     # If SIGNAL is set then place a order.
                     order = new_order
@@ -470,44 +514,42 @@ class BaseTrader(object):
                     order = new_order
                 elif orderType == 'WAIT':
                     # If WAIT is set then remove all orders and change order type to wait.
-                    cancel_order_results = self._cancel_order(tInfo[current_order_id]['S'])
-                    logging.debug('[BaseTrader] {0} cancel order results:\n{1}'.format(self.print_pair, str(cancel_order_results)))
-                    self.trade_information[current_order_status]['S'] = None
-                    self.trade_information[current_order_type]['S'] = 'WAIT'
+                    self._cancel_order(cp['order_id']['S'])
+                    cp['order_status']['S'] = None
+                    cp['order_type']['S'] = 'WAIT'
                 else:
-                    logging.critical('[BaseTrader] The order type [{0}] is not currently available.'.format(orderType))
+                    logging.critical('[BaseTrader][{0}] The order type [{1}] is not currently available.'.format(self.print_pair, orderType))
 
-        elif tInfo[current_order_type]['B'] and tInfo[current_order_status]['B'] != 'LOCKED' and self.trader_stats['runtime_state'] != 'FORCE_PREVENT_BUY':
+        elif cp['order_type']['B'] and cp['order_status']['B'] != 'LOCKED' and self.state_data['runtime_state'] != 'FORCE_PREVENT_BUY':
             ## Manage BUY orders/check conditions.
-            logging.debug('[BaseTrader] Checking for Buy condition. [{0}]'.format(self.print_pair))
+            logging.debug('[BaseTrader][{0}] Checking for Buy condition.'.format(self.print_pair))
+            entry_conditions = TC.long_entry_conditions if ptype == 'LONG' else TC.short_entry_conditions
 
-            if market_type == 'long':
-                new_order = TC.long_entry_conditions(
-                    self.custom_conditional_data,
-                    tInfo,
-                    indicators, 
-                    self.prices,
-                    candles,
-                    self.print_pair,
-                    self.btc_base_pair)
-            elif market_type == 'short':
-                new_order = TC.short_entry_conditions(
-                    self.custom_conditional_data,
-                    tInfo,
-                    indicators, 
-                    self.prices,
-                    candles,
-                    self.print_pair,
-                    self.btc_base_pair)
+            new_order = entry_conditions(
+                self.custom_conditional_data,
+                cp,
+                indicators, 
+                self.market_prices,
+                candles,
+                self.print_pair,
+                self.configuration['btc_base_pair'])
 
             if not(new_order):
                 return
 
+            if type(new_order) == tuple:
+                stage = new_order[1]
+                new_order = new_order[0]
+
+                if cp['current_stage'] != stage and stage != 0:
+                    cp['current_stage'] = stage
+                    print('Market {0} at type {1} is at stage {2}'.format(self.configuration['symbol'], ptype, str(stage)))
+
             orderType = new_order['order_type']
 
             if orderType != 'WAIT':
-                self.trade_information[current_order_desc]['B'] = new_order['description']
-                if self.run_type == 'TEST' and new_order['ptype'] == 'MARKET':
+                cp['order_description']['B'] = new_order['description']
+                if self.configuration['run_type'] == 'TEST' and new_order['ptype'] == 'MARKET':
                     updateOrder = True
                 elif 'price' in new_order:
                     if 'price' in new_order:
@@ -515,41 +557,36 @@ class BaseTrader(object):
                         if 'stopPrice' in new_order:
                             new_order['stopPrice'] = '{0:.{1}f}'.format(float(new_order['stopPrice']), self.rules['TICK_SIZE'])
                     
-                    if float(new_order['price']) != float(tInfo['buy_price'][market_type]):
+                    if float(new_order['price']) != float(cp['buy_price']):
                         updateOrder = True
 
-            if self.trade_information[current_order_type]['B'] != orderType or updateOrder:
+            if cp['order_type']['B'] != orderType or updateOrder:
                 if orderType == 'SIGNAL':
                     # If SIGNAL is set then place a order.
                     order = new_order
                 elif orderType == 'WAIT':
                     # If WAIT is set then remove all orders and change order type to wait.
-                    cancel_order_results = self._cancel_order(tInfo[current_order_id]['B'])
-                    logging.debug('[BaseTrader] {0} cancel order results:\n{1}'.format(self.print_pair, str(cancel_order_results)))
-                    self.trade_information[current_order_status]['B'] = None
-                    self.trade_information[current_order_type]['B'] = 'WAIT'
+                    self._cancel_order(cp['order_id']['B'])
+                    cp['order_status']['B'] = None
+                    cp['order_type']['B'] = 'WAIT'
                 else:
-                    logging.critical('[BaseTrader] The order type [{0}] is not currently available.'.format(orderType))
+                    logging.critical('[BaseTrader][{0}] The order type [{1}] is not currently available.'.format(self.print_pair, orderType))
 
         ## Place Market Order.
         if order:
-            order_results = self._place_order(market_type, order)
+            order_results = self._place_order(ptype, cp, order)
             logging.debug('order: {0}\norder result:\n{1}'.format(order, order_results))
-
-            if 'code' in order_results:
-                ## used to catch error codes.
-                return
 
             if order_results != None:
                 print(order_results)
-                logging.info('[BaseTrader] {0} Order placed for {1}.'.format(self.print_pair, orderType))
-                logging.debug('[BaseTrader] {0} Order placement results:\n{1}'.format(self.print_pair, str(order_results)))
+                order_results = order_results['data']
+                logging.info('[BaseTrader][{0}] Order placed for {1}.'.format(self.print_pair, orderType))
+                logging.debug('[BaseTrader][{0}] Order placement results:\n{1}'.format(self.print_pair, str(order_results)))
 
                 if 'type' in order_results:
                     if order_results['type'] == 'MARKET':
                         price1 = order_results['fills'][0]['price']
                     else:
-
                         price1 = order_results['price']
                 else: price1 = None
 
@@ -561,36 +598,34 @@ class BaseTrader(object):
                     else: order_price = price1
                 else: order_price = price1
 
-                print(price1, price2)
-
                 if order['side'] == 'BUY':
-                    self.trade_information['buy_price'][market_type] = order_price
+                    cp['buy_price'] = order_price
 
-                    if self.run_type == 'REAL':
-                        self.trade_information[current_order_id]['B'] = order_results['orderId']
+                    if self.configuration['run_type'] == 'REAL':
+                        cp['order_id']['B'] = order_results['orderId']
 
-                    self.trade_information[current_order_type]['B'] = orderType
-                    self.trade_information[current_order_status]['B'] = 'PLACED'
+                        if self.configuration['market_type'] == 'MARGIN':
+                            if 'loan_id' in order_results:
+                                cp['load_id'] = order_results['load_id'] 
+                                cp['loan_cost'] = order_results['loan_cost']
+                    else:
+                        cp['tokens_holding'] = order_results['tester_quantity']
+
                 else:
-                    print(order_price)
-                    self.trade_information['sell_price'][market_type] = order_price
-                    print(self.trade_information['sell_price'][market_type])
+                    cp['sell_price'] = order_price
 
-                    if self.run_type == 'REAL':
-                        self.trade_information[current_order_id]['S'] = order_results['orderId']
+                    if self.configuration['run_type'] == 'REAL':
+                        cp['order_id']['S'] = order_results['orderId']
 
-                    self.trade_information[current_order_type]['S'] = orderType
-                    self.trade_information[current_order_status]['S'] = 'PLACED'
+                cp['order_type'][order['side'][0]] = orderType
+                cp['order_status'][order['side'][0]] = 'PLACED'
 
-                logging.info('order status: {0}'.format(current_order_status))
-                logging.info('update: {0}, type: {1}, status: {2}'.format(updateOrder, orderType, self.trade_information[current_order_status]))
+                logging.info('[BaseTrader][{0}] Update: {1}, type: {2}, status: {3}'.format(self.print_pair, updateOrder, orderType, cp['order_status']))
+            return(cp)
 
 
-    def _place_order(self, market_type, order):
+    def _place_order(self, ptype, cp, order):
         ''' place order '''
-        current_order_id = '{0}_order_id'.format(market_type)
-
-        ## Setup the price to be the correct precision.
 
         if self.rules['isFiat'] and self.rules['invFiatToBTC']:
             side = 'SELL' if order['side'] == 'BUY' else 'BUY'
@@ -599,29 +634,29 @@ class BaseTrader(object):
         quantity = None
         if order['side'] == 'BUY':
             if self.rules['isFiat']:
-                quantity = self.trader_stats['currency_left'][market_type]
+                quantity = cp['currency_left']
             else:
-                quantity = float(self.trader_stats['currency_left'][market_type])/float(self.prices['bidPrice'])
+                quantity = float(cp['currency_left'])/float(self.market_prices['bidPrice'])
 
-            if self.run_type == 'REAL':
-                if self.trade_information[current_order_id]['B']:
-                    print("order id:", self.trade_information[current_order_id]['B'])
-                    cancel_order_results = self._cancel_order(self.trade_information[current_order_id]['B'])
-                    logging.info('[BaseTrader] {0} cancel order results:\n{1}'.format(self.print_pair, str(cancel_order_results)))
+            if self.configuration['run_type'] == 'REAL':
+                if cp['order_id']['B']:
+                    print("order id:", cp['order_id']['B'])
+                    cancel_order_results = self._cancel_order(cp['order_id']['B'])
+                    
 
         elif order['side'] == 'SELL':
             if self.rules['isFiat']:
-                quantity = self.trader_stats['tokens_holding'][market_type]*float(self.prices['bidPrice'])
+                quantity = cp['tokens_holding']*float(self.market_prices['bidPrice'])
             else:
-                if self.run_type == 'REAL':
-                    tokens_holding = self.trader_stats['wallet_pair'][self.base_asset][0]
+                if self.configuration['run_type'] == 'REAL':
+                    tokens_holding = self.wallet_pair[self.base_asset][0]
                 else:
-                    tokens_holding = self.trader_stats['tokens_holding'][market_type]
+                    tokens_holding = cp['tokens_holding']
 
-            if market_type == 'long':
+            if ptype == 'LONG':
                 quantity = float(tokens_holding)
-            elif market_type == 'short':
-                if self.run_type == 'REAL':
+            elif ptype == 'SHORT':
+                if self.configuration['run_type'] == 'REAL':
                     for asset in self.rest_api.get_account(api_type='MARGIN')['userAssets']:
                         if asset['asset'] == self.base_asset:
                             quantity = float(asset['borrowed'])+float(asset['interest'])
@@ -629,16 +664,10 @@ class BaseTrader(object):
                 else:
                     quantity = float(tokens_holding)
 
-            if self.run_type == 'REAL':
-                if self.trade_information[current_order_id]['S']:
-                    print("order id:", self.trade_information[current_order_id]['S'])
-                    cancel_order_results = self._cancel_order(self.trade_information[current_order_id]['S'])
-                    logging.info('[BaseTrader] {0} cancel order results:\n{1}'.format(self.print_pair, str(cancel_order_results)))
-        else:
-            return
-        
-        logging.info('wallet pair: {0}'.format(self.trader_stats['wallet_pair']))
-        logging.info('quantity: {0}'.format(quantity))
+            if self.configuration['run_type'] == 'REAL':
+                if cp['order_id']['S']:
+                    print("order id:", cp['order_id']['S'])
+                    self._cancel_order(cp['order_id']['S'])
 
         ## Setup the quantity to be the correct precision.
         if quantity:
@@ -648,55 +677,55 @@ class BaseTrader(object):
         logging.info('quantity: {0}'.format(quantity))
 
         ## Place orders for both SELL/BUY sides for both TEST/REAL run types.
-        if self.run_type == 'REAL':
-
+        if self.configuration['run_type'] == 'REAL':
+            rData = {}
             ## Convert BUY to SELL if the order is a short (for short orders are inverted)
-            if market_type == 'long':
+            if ptype == 'LONG':
                 side = order['side']
-            elif market_type == 'short':
+            elif ptype == 'SHORT':
                 if order['side'] == 'BUY':
                     ## Calculate the quantity required for a short loan.
                     loan_get_result = self.rest_api.apply_for_loan(asset=self.base_asset, amount=quantity)
-                    print(self.base_asset, quantity)
-                    print(loan_get_result)
-                    self.trade_information['loan_id'][market_type] = loan_get_result['tranId']
-                    self.trade_information[current_order_id]['S'] = None
-                    self.trade_information['loan_cost'][market_type] = quantity
+                    rData.update({'loan_id':loan_get_result['tranId'], 'loan_cost':quantity})
                     side = 'SELL'
                 else:
                     side = 'BUY'
 
             if order['ptype'] == 'MARKET':
-                logging.info('[BaseTrader] symbol:{0}, side:{1}, type:{2}, quantity:{3}'.format(
+                logging.info('[BaseTrader][{0}] side:{1}, type:{2}, quantity:{3}'.format(
                     self.print_pair, 
                     order['side'], 
                     order['ptype'], 
                     quantity))
 
-                return(self.rest_api.place_order(self.market_type, 
-                    symbol=self.symbol, 
+                rData.update(self.rest_api.place_order(
+                    self.configuration['market_type'], 
+                    symbol=self.configuration['symbol'], 
                     side=side, 
                     type=order['ptype'], 
                     quantity=quantity))
+                return({'action':'PLACED_MARKET_ORDER', 'data':rData})
 
             elif order['ptype'] == 'LIMIT':
-                logging.info('[BaseTrader] symbol:{0}, side:{1}, type:{2}, quantity:{3} price:{4}'.format(
+                logging.info('[BaseTrader][{0}]  side:{1}, type:{2}, quantity:{3} price:{4}'.format(
                     self.print_pair, 
                     order['side'], 
                     order['ptype'], 
                     quantity,
                     order['price']))
 
-                return(self.rest_api.place_order(self.market_type, 
-                    symbol=self.symbol, 
+                rData.update(self.rest_api.place_order(
+                    self.configuration['market_type'], 
+                    symbol=self.configuration['symbol'], 
                     side=side, 
                     type=order['ptype'], 
                     timeInForce='GTC', 
                     quantity=quantity,
                     price=order['price']))
+                return({'action':'PLACED_LIMIT_ORDER', 'data':rData})
 
             elif order['ptype'] == 'STOP_LOSS_LIMIT':
-                logging.info('[BaseTrader] symbol:{0}, side:{1}, type:{2}, quantity:{3} price:{4}, stopPrice:{5}'.format(
+                logging.info('[BaseTrader][{0}] side:{1}, type:{2}, quantity:{3} price:{4}, stopPrice:{5}'.format(
                     self.print_pair, 
                     order['side'], 
                     order['ptype'], 
@@ -704,80 +733,80 @@ class BaseTrader(object):
                     order['price'],
                     order['stopPrice']))
 
-                return(self.rest_api.place_order(self.market_type, 
-                    symbol=self.symbol, 
+                rData.update(self.rest_api.place_order(
+                    self.configuration['market_type'], 
+                    symbol=self.configuration['symbol'], 
                     side=side, 
                     type=order['ptype'], 
                     timeInForce='GTC', 
                     quantity=quantity,
                     price=order['price'],
                     stopPrice=order['price']))
+                return({'action':'PLACED_STOPLOSS_ORDER', 'data':rData})
 
         else:
             if order['ptype'] == 'MARKET':
-                price = self.prices['lastPrice']
+                price = self.market_prices['lastPrice']
             else:
                 price = order['price']
-            self.trader_stats['tester_quantity'][market_type] = float(quantity)
 
-            return({'action':'PLACED_TEST_ORDER', 'price':price})
+            return({'action':'PLACED_TEST_ORDER', 'data':{'type':'test', 'price':price, 'tester_quantity':float(quantity)}})
 
 
     def _cancel_order(self, order_id):
         ''' cancel orders '''
-        if self.run_type == 'REAL':
-            return(self.rest_api.cancel_order(self.market_type, symbol=self.symbol, orderId=order_id))
-        return('CANCLED_TEST_ORDER')
+        if self.configuration['run_type'] == 'REAL':
+            result = self.rest_api.cancel_order(self.configuration['market_type'], symbol=self.configuration['symbol'], orderId=order_id)
+        else: result = 'CANCELED_TEST_ORDER'
+        logging.debug('[BaseTrader][{0}] Cancel order results:\n{1}'.format(self.print_pair, str(result)))
 
 
-    def _setup_sell(self, market_type):
+    def _setup_market(self, side, cp):
         ''' Used to setup the trader for selling after a buy has been completed. '''
-        current_order_type = '{0}_order_type'.format(market_type)
-        current_order_status = '{0}_order_status'.format(market_type)
-        current_order_id = '{0}_order_id'.format(market_type)
 
-        self.trader_stats['currency_left'][market_type]     = 0
+        if side == 'BUY':
+            cp['currency_left']         = 0
+            cp['order_id']['B']         = None
+            cp['order_status']['B']     = None
+            cp['order_type']['B']       = None
+            cp['order_type']['S']       = 'WAIT'
 
-        self.trade_information[current_order_id]['B']       = None
-        self.trade_information[current_order_status]['B']   = None
-        self.trade_information[current_order_type]['B']     = None
-        self.trade_information[current_order_type]['S']     = 'WAIT'
+        elif side == 'SELL':
+            cp['sell_price']            = 0
+            cp['buy_price']             = 0
+            cp['currency_left']         = self.state_data['base_mac']
+            cp['tokens_holding']        = 0
+            cp['order_id']['S']         = None
+            cp['order_description']['S']= None
+            cp['order_status']['S']     = None
+            cp['order_type']['S']       = None
+            cp['order_description']['B']= None
+            cp['order_type']['B']       = 'WAIT'
+
+        return(cp)
 
 
-    def _setup_buy(self, market_type):
-        ''' Used to setup the trader for buying after a sell has been completed. '''
-        current_order_type = '{0}_order_type'.format(market_type)
-        current_order_status = '{0}_order_status'.format(market_type)
-        current_order_desc = '{0}_order_desc'.format(market_type)
-        current_order_id = '{0}_order_id'.format(market_type)
-
-        self.trade_information['sell_price'][market_type]   = 0
-        self.trade_information['buy_price'][market_type]    = 0
-        self.trader_stats['currency_left'][market_type]     = self.trader_stats['base_mac']
-        self.trader_stats['tokens_holding'][market_type]    = 0
-
-        self.trade_information[current_order_id]['S']       = None
-        self.trade_information[current_order_desc]['S']     = None
-        self.trade_information[current_order_status]['S']   = None
-        self.trade_information[current_order_type]['S']     = None
-        self.trade_information[current_order_desc]['B']     = None
-        self.trade_information[current_order_type]['B']     = 'WAIT'
+    def get_indicator_data(self):
+        return(self.indicators)
 
 
     def get_trader_data(self):
-        ''' This block is called to return data about the current trader '''
-        return({
+        trader_data = {
             'market':self.print_pair,
-            'customConditional':self.custom_conditional_data,
-            'tradeInfo':self.trade_information,
-            'traderStats':self.trader_stats,
-            'prices':self.prices,
+            'configuration':self.configuration,
+            'market_prices':self.market_prices,
+            'wallet_pair':self.wallet_pair,
+            'custom_conditions':self.custom_conditional_data,
+            'long_position':self.long_position,
+            'trade_record':self.trade_recorder,
+            'state_data':self.state_data,
             'rules':self.rules
-        })
+        }
 
+        if self.configuration['market_type'] == 'MARGIN':
+            trader_data.update({'short_position':self.short_position})
 
-    def check_open_order(self, open_orders):
-        pass
+        return(trader_data)
 
 
     def update_wallets(self, socket_buffer_global):
@@ -802,5 +831,5 @@ class BaseTrader(object):
         if not(foundQuote):
             wallet_pair.update({self.quote_asset:[0.0, 0.0]})
 
-        logging.info('[BaseTrader] New account data pulled, wallets updated. [{0}]'.format(self.print_pair))
+        logging.info('[BaseTrader][{0}] New account data pulled, wallets updated.'.format(self.print_pair))
         return(wallet_pair, last_wallet_update_time)
