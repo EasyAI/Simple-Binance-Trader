@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 
+import time
 import logging
 import numpy as np
 import technical_indicators as TI
@@ -30,7 +31,8 @@ def other_conditions(custom_conditional_data, position_information, position_typ
     can_order = True
 
     if position_information['market_status'] == 'COMPLETE_TRADE':
-        position_information['market_status'] = 'TRADING'
+        if position_information['sell_time'] > 60:
+            position_information['market_status'] = 'TRADING'
 
     position_information.update({'can_order':can_order})
     return(custom_conditional_data, position_information)
