@@ -25,6 +25,7 @@ BASE_MARKET_LAYOUT = {
     'buy_price':0.0,        # The price related to BUY.
     'sell_price':0.0,       # The price related to SELL.
     'buy_time':0,           # Time of when the trader bought.
+    'sell_time':0,
     'market_status':None,   # The current status tied to the trader.
     'currency_left':0.0,    # The amount of currenty left from the base.
     'tokens_holding':0.0,   # Amount of tokens being held.
@@ -399,6 +400,7 @@ class BaseTrader(object):
 
                 self.trade_recorder.append([cp['buy_price'], buyTime, cp['sell_price'], sellTime, outcome, ptype])
 
+                cp['sell_time'] = time.time()
                 cp['market_status'] = 'COMPLETE_TRADE'
                 logging.info('[BaseTrader][{0}] Completed sell order.'.format(self.print_pair))
             return(self._setup_market(side, cp))
