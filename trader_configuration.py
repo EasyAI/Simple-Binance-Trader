@@ -60,9 +60,7 @@ def long_exit_conditions(custom_conditional_data, trade_information, indicators,
 
     '''if trade_information['long_order_type']['S'] == 'STOP_LOSS':
         return
-
-    #price = float('{0:.{1}f}'.format((trade_information['buy_price']['long']-(trade_information['buy_price']['long']*0.01)), pRounding))
-    price = float('{0:.{1}f}'.format(boll[1]['B'], pRounding))
+    price = float('{0:.{1}f}'.format((trade_information['buy_price']-(trade_information['buy_price']*0.01)), pRounding))
     return({'order_type':'STOP_LOSS', 
             'side':'SELL', 
             'price':price,
