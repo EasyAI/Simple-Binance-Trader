@@ -2,7 +2,7 @@ import os
 import re
 import json
 import time
-from os.path import exists, basename
+from os.path import exists
 
 cwd = os.getcwd()
 

@@ -61,8 +61,6 @@ def control_panel():
     start_up_data = {'hostIP':host_ip, 
                     'hostPort':host_port}
 
-    print(start_up_data)
-
     return(render_template('main_page.html', data=start_up_data))
 
 
@@ -232,8 +230,7 @@ class BotCore():
                 market['quoteAsset'], 
                 market['baseAsset'], 
                 self.rest_api, 
-                socket_api=self.socket_api,
-                logs_dir=self.order_log_path)
+                socket_api=self.socket_api)
             
             traderObject.setup_initial_values(
                 self.market_type, 
@@ -304,7 +301,6 @@ class BotCore():
             currSymbol = "{0}{1}".format(trader_.base_asset, trader_.quote_asset)
 
             if cached_traders_data:
-                print(cached_traders_data['data'])
                 for cached_trader in cached_traders_data['data']:
                     m_split = cached_trader['market'].split('-')
                     if (m_split[1]+m_split[0]) == currSymbol:
