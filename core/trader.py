@@ -376,7 +376,9 @@ class BaseTrader(object):
                 tokens_holding = cp['tokens_holding']
                 fee = tokens_holding*COMMISION_FEE
 
-                sellTime = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+                cp['sell_time'] = time.time()
+
+                sellTime = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(cp['sell_time']))
                 buyTime = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(cp['buy_time']))
 
                 if self.configuration['market_type']  == 'MARGIN':
