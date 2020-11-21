@@ -1,3 +1,5 @@
 numpy
 requests
+flask
+flask-socketio
 websocket-client
