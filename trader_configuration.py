@@ -1,3 +1,4 @@
+
 #! /usr/bin/env python3
 
 import time
@@ -20,7 +21,6 @@ def technical_indicators(candles):
     
     indicators.update({'MACD':TI.get_MACD(close_prices)})
     indicators.update({'MFI':TI.get_MFI(candles)})
-    indicators.update({'ADX':TI.get_ADX_DI(candles)})
     indicators.update({'MA_50':TI.get_SMA(close_prices, 50)})
 
     return(indicators)
@@ -58,7 +58,7 @@ def long_exit_conditions(custom_conditional_data, trade_information, indicators,
     return({'order_type':'WAIT'})
 
 
-    '''if trade_information['long_order_type']['S'] == 'STOP_LOSS':
+    if trade_information['long_order_type']['S'] == 'STOP_LOSS':
         return
     price = float('{0:.{1}f}'.format((trade_information['buy_price']-(trade_information['buy_price']*0.01)), pRounding))
     return({'order_type':'STOP_LOSS', 
@@ -66,7 +66,7 @@ def long_exit_conditions(custom_conditional_data, trade_information, indicators,
             'price':price,
             'stopPrice':price,
             'description':'Long exit stop-loss', 
-            'ptype':'STOP_LOSS_LIMIT'})'''
+            'ptype':'STOP_LOSS_LIMIT'})
     return({'order_type':'WAIT'})
 
 
