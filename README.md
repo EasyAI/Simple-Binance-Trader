@@ -3,9 +3,13 @@
 # Disclaimer
 I am not responsible for the trades you make with the script, this script has not been exstensivly tested on live trades.
 
-NOTE: The current strtergy is also very weak and will mostlikley return only losses therefore I recomend you create your work or use some which would work. However the trader currently also does not support simulated trades and only support live trading, simulated trades should be added in the future so you may need to wait until then to use this to test stratergies.
+## Please check the following:
+- Make sure your account uses BNB for the trade fees and that you have plenty of BNB for the trader to use for trades as if not there will be issues with the trader.
+- Please clear any cache files when updating the trader as there may be issues if not.
+- Please if any updates are also available for binance_api or the technical indicators update those also.
 
-NOTE: Testing has been re-enabled I also recomend updating the binance_api again.
+
+NOTE: The current strtergy is also very weak and will mostlikley return only losses therefore I recomend you create your work or use some which would work. However the trader currently also does not support simulated trades and only support live trading, simulated trades should be added in the future so you may need to wait until then to use this to test stratergies.
 
 NOTE: Trader now supports MARGIN trades allowing the placement of short and long positions. If SPOT trading put your conditions within the "long_entry/long_exit" sections within the trader_configuration.py file.
 
