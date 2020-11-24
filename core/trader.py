@@ -2,10 +2,10 @@
 
 '''
 trader
-
 '''
 import os
 import sys
+import copy
 import time
 import logging
 import datetime
@@ -45,7 +45,7 @@ TYPE_MARKET_EXTRA = {
     'loan_id':None,
 }
 
-BACKTESTER_MODE = True
+BACKTESTER_MODE = False
 
 class BaseTrader(object):
 
@@ -154,11 +154,13 @@ class BaseTrader(object):
 
         self.rules.update(filters)
 
-        self.long_position.update(BASE_MARKET_LAYOUT)
+
+        self.long_position.update(copy.deepcopy(BASE_MARKET_LAYOUT))
+        self.long_position.update({'symbol':symbol})
 
         if market_type == 'MARGIN':
-            self.short_position.update(BASE_MARKET_LAYOUT, TYPE_MARKET_EXTRA)
-            self.long_position.update(TYPE_MARKET_EXTRA)
+            self.short_position.update(copy.deepcopy(BASE_MARKET_LAYOUT), copy.deepcopy(TYPE_MARKET_EXTRA))
+            self.long_position.update(copy.deepcopy(TYPE_MARKET_EXTRA))
 
         logging.debug('[BaseTrader][{0}] Initilized trader attributes with data.'.format(self.print_pair))
 
@@ -167,7 +169,6 @@ class BaseTrader(object):
         '''
         Start the trader.
         Requires: MAC (Max Allowed Currency, the max amount the trader is allowed to trade with in BTC).
-
         -> Check for previous trade.
             If a recent, not closed traded is seen, or leftover currency on the account over the min to place order then set trader to sell automatically.
         
@@ -191,15 +192,13 @@ class BaseTrader(object):
             self.short_position['currency_left'] = float(MAC)
 
         ## Start the main of the trader in a thread.
-        trader_thread = threading.Thread(target=self._main)
-        trader_thread.start()
+        threading.Thread(target=self._main).start()
         return(True)
 
 
     def stop(self):
         ''' 
         Stop the trader.
-
         -> Trader cleanup.
             To gracefully stop the trader and cleanly eliminate the thread as well as market orders.
         '''
@@ -223,16 +222,12 @@ class BaseTrader(object):
     def _main(self):
         '''
         Main body for the trader loop.
-
         -> Wait for candle data to be fed to trader.
             Infinite loop to check if candle has been populated with data,
-
         -> Call the updater.
             Updater is used to re-calculate the indicators as well as carry out timed checks.
-
         -> Call Order Manager.
             Order Manager is used to check on currently PLACED orders.
-
         -> Call Trader Manager.
             Trader Manager is used to check the current conditions of the indicators then set orders if any can be PLACED.
         '''
@@ -263,11 +258,15 @@ class BaseTrader(object):
                 if 'outboundAccountInfo' in socket_buffer_global:
                     if last_wallet_update_time != socket_buffer_global['outboundAccountInfo']['E']:
                         self.wallet_pair, last_wallet_update_time = self.update_wallets(socket_buffer_global)
-                            
+            
             self.market_prices = {
                 'lastPrice':candles[0][4],
                 'askPrice':books_data['a'][0][0],
                 'bidPrice':books_data['b'][0][0]}
+
+            if self.state_data['runtime_state'] == 'PAUSE_INSUFBALANCE':
+                if self.wallet_pair['BTC'][0] > self.state_data['base_mac']:
+                   self.state_data['runtime_state'] = 'RUN' 
 
             if not self.state_data['runtime_state'] in ['STANDBY', 'FORCE_STANDBY', 'FORCE_PAUSE']:
                 ## Call for custom conditions that can be used for more advanced managemenet of the trader.
@@ -308,7 +307,7 @@ class BaseTrader(object):
                     else: self.short_position = cp
 
                     if not BACKTESTER_MODE:
-                        time.sleep(.8)
+                        time.sleep(3)
 
             current_localtime = time.localtime()
             self.state_data['last_update_time'] = '{0}:{1}:{2}'.format(current_localtime[3], current_localtime[4], current_localtime[5])
@@ -320,10 +319,8 @@ class BaseTrader(object):
     def _order_status_manager(self, ptype, cp, socket_buffer_symbol):
         '''
         This is the manager for all and any active orders.
-
         -> Check orders (Test/Real).
             This checks both the buy and sell side for test orders and updates the trader accordingly.
-
         -> Monitor trade outcomes.
             Monitor and note down the outcome of trades for keeping track of progress.
         '''
@@ -335,19 +332,13 @@ class BaseTrader(object):
             if 'executionReport' in socket_buffer_symbol:
                 order_seen = socket_buffer_symbol['executionReport']
 
-                all_active_orders = [self.long_position['order_id']['B'], self.long_position['order_id']['S']]
-                if self.configuration['market_type'] == 'MARGIN':
-                    all_active_orders+=[self.short_position['order_id']['B'], self.short_position['order_id']['S']]
+                # Manage trader placed orders via order ID's to prevent order conflict.
+                all_mt_trades = [cp['order_id']['B'], cp['order_id']['S']]
+                if order_seen['i'] in all_mt_trades:
+                    active_trade = True
 
-                if not(order_seen['i'] in all_active_orders):
-                    # Blocked is used to allow force buys.
-                    if ptype == 'LONG':
-                        active_trade = True
-                else:
-                    # Manage trader placed orders via order ID's to prevent order conflict.
-                    all_mt_trades = [cp['order_id']['B'], cp['order_id']['S']]
-                    if order_seen['i'] in all_mt_trades:
-                        active_trade = True
+                elif cp['order_status']['B'] == 'PLACED' or cp['order_status']['S'] == 'PLACED':
+                    active_trade = True
         else:
             # Basic update for test orders.
             if cp['order_status']['B'] == 'PLACED' or cp['order_status']['S'] == 'PLACED':
@@ -361,14 +352,17 @@ class BaseTrader(object):
 
         ## Monitor trade outcomes.
         if trade_done:
-            if self.configuration['run_type'] == 'REAL':
-                print(order_seen)
             print('Finished {0} trade for {1}'.format(side, self.print_pair))
 
             if side == 'BUY':
                 # Here all the necissary variables and values are added to signal a completion on a buy trade.
-                cp['tokens_holding'] = tokens_bought
-                cp['buy_time'] = time.time()
+                cp['tokens_holding']    = tokens_bought
+                cp['buy_time']          = time.time()
+                cp['currency_left']     = 0
+                cp['order_id']['B']     = None
+                cp['order_status']['B'] = None
+                cp['order_type']['B']   = None
+                cp['order_type']['S']   = 'WAIT'
                 logging.info('[BaseTrader] Completed buy order. [{0}]'.format(self.print_pair))
 
             elif side == 'SELL':
@@ -397,12 +391,19 @@ class BaseTrader(object):
                         file.close()'''
 
                 self.trade_recorder.append([cp['buy_price'], buyTime, cp['sell_price'], sellTime, outcome, ptype])
-
-                cp['market_status'] = 'COMPLETE_TRADE'
+                cp['sell_price']            = 0
+                cp['buy_price']             = 0
+                cp['currency_left']         = self.state_data['base_mac']
+                cp['tokens_holding']        = 0
+                cp['order_id']['S']         = None
+                cp['order_description']['S']= None
+                cp['order_status']['S']     = None
+                cp['order_type']['S']       = None
+                cp['order_description']['B']= None
+                cp['order_type']['B']       = 'WAIT'
+                cp['market_status']         = 'COMPLETE_TRADE'
                 logging.info('[BaseTrader] Completed sell order. [{0}]'.format(self.print_pair))
-            return(self._setup_market(side, cp))
-        else:
-            return(cp)
+        return(cp)
 
 
     def _check_active_trade(self, side, ptype, cp, order_seen):
@@ -459,13 +460,10 @@ class BaseTrader(object):
     def _trade_manager(self, ptype, cp, indicators, candles):
         ''' 
         Here both the sell and buy conditions are managed by the trader.
-
         -> Manager Sell Conditions.
             Manage the placed sell condition as well as monitor conditions for the sell side.
-
         -> Manager Buy Conditions.
             Manage the placed buy condition as well as monitor conditions for the buy side.
-
         -> Place Market Order.
             Place orders on the market with real and assume order placemanet with test.
         '''
@@ -517,8 +515,6 @@ class BaseTrader(object):
                     logging.debug('[BaseTrader] {0} cancel order results:\n{1}'.format(self.print_pair, str(cancel_order_results)))
                     cp['order_status']['S'] = None
                     cp['order_type']['S'] = 'WAIT'
-                else:
-                    logging.critical('[BaseTrader] The order type [{0}] is not currently available.'.format(orderType))
 
         elif cp['order_type']['B'] and cp['order_status']['B'] != 'LOCKED' and self.state_data['runtime_state'] != 'FORCE_PREVENT_BUY':
             ## Manage BUY orders/check conditions.
@@ -570,20 +566,26 @@ class BaseTrader(object):
                     logging.debug('[BaseTrader] {0} cancel order results:\n{1}'.format(self.print_pair, str(cancel_order_results)))
                     cp['order_status']['B'] = None
                     cp['order_type']['B'] = 'WAIT'
-                else:
-                    logging.critical('[BaseTrader] The order type [{0}] is not currently available.'.format(orderType))
 
         ## Place Market Order.
         if order:
             order_results = self._place_order(ptype, cp, order)
             logging.debug('order: {0}\norder result:\n{1}'.format(order, order_results))
 
+            if not('data' in order_results):
+                print(order_results)
+                return
+
             if 'code' in order_results['data']:
                 ## used to catch error codes.
+                if order_results['data']['code'] == -2010:
+                    self.state_data['runtime_state'] = 'PAUSE_INSUFBALANCE'
+                elif order_results['data']['code'] == -2011:
+                    self.state_data['runtime_state'] = 'CHECK_ORDERS'
                 print(order_results['data'])
+                return
 
             if order_results != None:
-                print(order_results)
                 order_results = order_results['data']
                 logging.info('[BaseTrader] {0} Order placed for {1}.'.format(self.print_pair, orderType))
                 logging.debug('[BaseTrader] {0} Order placement results:\n{1}'.format(self.print_pair, str(order_results)))
@@ -648,6 +650,8 @@ class BaseTrader(object):
                     print("order id:", cp['order_id']['B'])
                     cancel_order_results = self._cancel_order(cp['order_id']['B'])
                     logging.info('[BaseTrader] {0} cancel order results:\n{1}'.format(self.print_pair, str(cancel_order_results)))
+                    if 'code' in cancel_order_results:
+                        return(cancel_order_results)
 
         elif order['side'] == 'SELL':
             if self.rules['isFiat']:
@@ -674,6 +678,8 @@ class BaseTrader(object):
                     print("order id:", cp['order_id']['S'])
                     cancel_order_results = self._cancel_order(cp['order_id']['S'])
                     logging.info('[BaseTrader] {0} cancel order results:\n{1}'.format(self.print_pair, str(cancel_order_results)))
+                    if 'code' in cancel_order_results:
+                        return(cancel_order_results)
 
         ## Setup the quantity to be the correct precision.
         if quantity:
@@ -764,31 +770,6 @@ class BaseTrader(object):
         if self.configuration['run_type'] == 'REAL':
             return(self.rest_api.cancel_order(self.configuration['market_type'], symbol=self.configuration['symbol'], orderId=order_id))
         return('CANCLED_TEST_ORDER')
-
-
-    def _setup_market(self, side, cp):
-        ''' Used to setup the trader for selling after a buy has been completed. '''
-
-        if side == 'BUY':
-            cp['currency_left']         = 0
-            cp['order_id']['B']         = None
-            cp['order_status']['B']     = None
-            cp['order_type']['B']       = None
-            cp['order_type']['S']       = 'WAIT'
-
-        elif side == 'SELL':
-            cp['sell_price']            = 0
-            cp['buy_price']             = 0
-            cp['currency_left']         = self.state_data['base_mac']
-            cp['tokens_holding']        = 0
-            cp['order_id']['S']         = None
-            cp['order_description']['S']= None
-            cp['order_status']['S']     = None
-            cp['order_type']['S']       = None
-            cp['order_description']['B']= None
-            cp['order_type']['B']       = 'WAIT'
-
-        return(cp)
 
 
     def get_indicator_data(self):
