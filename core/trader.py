@@ -339,6 +339,7 @@ class BaseTrader(object):
 
                 elif cp['order_status']['B'] == 'PLACED' or cp['order_status']['S'] == 'PLACED':
                     active_trade = True
+
         else:
             # Basic update for test orders.
             if cp['order_status']['B'] == 'PLACED' or cp['order_status']['S'] == 'PLACED':
@@ -347,6 +348,10 @@ class BaseTrader(object):
 
         if active_trade:
             # Determine the current state of an order.
+            if self.state_data['runtime_state'] == 'CHECK_ORDERS':
+                self.state_data['runtime_state'] = 'RUN'
+                cp['order_status']['B'] = None
+                cp['order_status']['S'] = None
             side = 'BUY' if cp['order_type']['S'] == None else 'SELL'
             cp, trade_done, tokens_bought = self._check_active_trade(side, ptype, cp, order_seen)
 
@@ -384,11 +389,11 @@ class BaseTrader(object):
                 else: 
                     outcome = float('{0:.8f}'.format(((cp['sell_price']-cp['buy_price'])*tokens_holding)))
 
-                    '''with open(self.orders_log_path, 'a') as file:
-                        buyResp = 'marketType:{3}, Buy order, price: {0:.8f}, time: {1} [{2}] | '.format(cp['buy_price'], buyTime, cp['order_description']['B'], ptype)
-                        sellResp = 'Sell order, price: {0:.8f}, time: {1} [{2}], outcome: {3:.8f} [{4}]'.format(cp['sell_price'], sellTime, cp['order_description']['S'], outcome, self.configuration['symbol'])
-                        file.write(buyResp+sellResp+'\n')
-                        file.close()'''
+                with open(self.orders_log_path, 'a') as file:
+                    buyResp = 'marketType:{3}, Buy order, price: {0:.8f}, time: {1} [{2}] | '.format(cp['buy_price'], buyTime, cp['order_description']['B'], ptype)
+                    sellResp = 'Sell order, price: {0:.8f}, time: {1} [{2}], outcome: {3:.8f} [{4}]'.format(cp['sell_price'], sellTime, cp['order_description']['S'], outcome, self.configuration['symbol'])
+                    file.write(buyResp+sellResp+'\n')
+                    file.close()
 
                 self.trade_recorder.append([cp['buy_price'], buyTime, cp['sell_price'], sellTime, outcome, ptype])
                 cp['sell_price']            = 0
@@ -651,14 +656,14 @@ class BaseTrader(object):
                     cancel_order_results = self._cancel_order(cp['order_id']['B'])
                     logging.info('[BaseTrader] {0} cancel order results:\n{1}'.format(self.print_pair, str(cancel_order_results)))
                     if 'code' in cancel_order_results:
-                        return(cancel_order_results)
+                        return({'action':'ORDER_ISSUE', 'data':cancel_order_results})
 
         elif order['side'] == 'SELL':
             if self.rules['isFiat']:
                 quantity = cp['tokens_holding']*float(self.market_prices['bidPrice'])
             else:
                 if self.configuration['run_type'] == 'REAL':
-                    tokens_holding = self.wallet_pair[self.base_asset][0]
+                    tokens_holding = self.wallet_pair[self.base_asset][0]+self.wallet_pair[self.base_asset][1]
                 else:
                     tokens_holding = cp['tokens_holding']
 
@@ -679,7 +684,7 @@ class BaseTrader(object):
                     cancel_order_results = self._cancel_order(cp['order_id']['S'])
                     logging.info('[BaseTrader] {0} cancel order results:\n{1}'.format(self.print_pair, str(cancel_order_results)))
                     if 'code' in cancel_order_results:
-                        return(cancel_order_results)
+                        return({'action':'ORDER_ISSUE', 'data':cancel_order_results})
 
         ## Setup the quantity to be the correct precision.
         if quantity:
