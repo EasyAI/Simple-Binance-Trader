@@ -5,6 +5,7 @@ Botcore
 
 '''
 import os
+import os.path
 import sys
 import time
 import json
@@ -25,10 +26,11 @@ APP         = Flask(__name__)
 SOCKET_IO   = SocketIO(APP)
 
 ##
-BOT_CORE    = None
+core_object    = None
+host_ip     = ''
+host_port   = ''
 
-host_ip = ''
-host_port = ''
+CAHCE_FILES = ['traders.json']
 
 ALL_BTC_PAIRS = ['USDT', 'BKRW' 'TUSD', 'BUSD', 'USDC', 'PAX', 'AUD', 'BIDR', 'DAI', 'EUR', 'GBP', 'IDRT', 'NGN', 'RUB', 'TRY', 'ZAR', 'UAH']
 INVERT_FOR_BTC_FIAT = False
@@ -74,7 +76,7 @@ def add_trader():
 def update_trader():
     post_data = request.get_json()
     current_trader = None
-    for trader in BOT_CORE.trader_objects:
+    for trader in core_object.trader_objects:
         if trader.symbol == post_data['market']:
             current_trader = trader
             break
@@ -98,22 +100,16 @@ def update_trader():
     return(json.dumps({'call':True}))
 
 
-@APP.route('/rest-api/v1/get_trader_data', methods=['GET'])
-def get_trader_data():
-    print(request.get_json())
-    return(json.dumps({'call':True, 'data':BOT_CORE.get_trader_data()}))
-
-
 @APP.route('/rest-api/v1/get_trader_indicators', methods=['GET'])
 def get_trader_indicators():
     print(request.get_json())
-    return(json.dumps({'call':True, 'data':BOT_CORE.get_trader_indicators()}))
+    return(json.dumps({'call':True, 'data':core_object.get_trader_indicators()}))
 
 
 @APP.route('/rest-api/v1/get_trader_candles', methods=['GET'])
 def get_trader_candles():
     print(request.get_json())
-    return(json.dumps({'call':True, 'data':BOT_CORE.get_trader_candles()}))
+    return(json.dumps({'call':True, 'data':core_object.get_trader_candles()}))
 
 
 
@@ -126,8 +122,8 @@ def web_updater():
     lastHash = None
 
     while True:
-        if BOT_CORE.coreState == 'RUN':
-            traderData = BOT_CORE.get_trader_data()
+        if core_object.coreState == 'RUN':
+            traderData = core_object.get_trader_data()
             currHash = hashlib.md5(str(traderData).encode())
 
             if lastHash != currHash:
@@ -139,7 +135,7 @@ def web_updater():
 
 class BotCore():
 
-    def __init__(self, settings, order_log_path, cache_handler):
+    def __init__(self, settings, logs_dir, cache_dir):
         ''' 
         
         '''
@@ -148,8 +144,8 @@ class BotCore():
         self.rest_api           = rest_master.Binance_REST(settings['public_key'], settings['private_key'])
         self.socket_api         = socket_master.Binance_SOCK()
 
-        self.order_log_path     = order_log_path
-        self.cache_handler      = cache_handler
+        self.logs_dir           = logs_dir
+        self.cache_dir          = cache_dir
 
         self.run_type           = settings['run_type']
         self.market_type        = settings['market_type']
@@ -157,114 +153,81 @@ class BotCore():
         self.max_candles        = settings['max_candles']
         self.max_depth          = settings['max_depth']
 
-        ## Trader settings.
-        self.MAC                = settings['trading_currency']
+        self.base_currency      = settings['trading_currency']
         self.candle_Interval    = settings['trader_interval']
 
         self.trader_objects     = []
         self.trading_markets    = settings['trading_markets']
 
-        self.coreState          = 'READY'
+        self.coreState          = None
 
 
     def start(self):
-        '''
-        
-        '''
+        ''' '''
         logging.info('[BotCore] Starting the BotCore object.')
         self.coreState = 'SETUP'
-
-        logging.info('[BotCore] Collecting market info.')
-
-        market_rules = self.cache_handler.read_cache_file('markets.json')
-
-        if not(market_rules):
-            market_rules = self.rest_api.get_exchange_info()
-            self.cache_handler.save_cache_file(market_rules, 'markets.json')
-            market_rules = market_rules['symbols']
-        else:
-            market_rules = market_rules['data']['symbols']
 
         ## check markets
         found_markets = []
         not_supported = []
-        for market in market_rules:
+        for market in self.rest_api.get_exchange_info()['symbols']:
             fmtMarket = '{0}-{1}'.format(market['quoteAsset'], market['baseAsset'])
 
-            ## If the current market is not in the trading markets list then skip.
+            # If the current market is not in the trading markets list then skip.
             if not fmtMarket in self.trading_markets:
                 continue
 
             found_markets.append(fmtMarket)
 
-            if self.market_type == 'MARGIN':
-                if market['isMarginTradingAllowed'] == False: 
-                    not_supported.append(fmtMarket)
-                    continue
+            if (self.market_type == 'MARGIN' and market['isMarginTradingAllowed'] == False) or (self.market_type == 'SPOT' and market['isSpotTradingAllowed'] == False):
+                not_supported.append(fmtMarket)
+                continue
 
-            elif self.market_type == 'SPOT':
-                if market['isSpotTradingAllowed'] == False: 
-                    not_supported.append(fmtMarket)
-                    continue
-
-            filters = market['filters']
-
-            ## This is used to setup min quantity
-            if float(filters[2]['minQty']) < 1.0:
-                minQuantBase = (Decimal(filters[2]['minQty'])).as_tuple()
+            # This is used to setup min quantity.
+            if float(market['filters'][2]['minQty']) < 1.0:
+                minQuantBase = (Decimal(market['filters'][2]['minQty'])).as_tuple()
                 lS = abs(int(len(minQuantBase.digits)+minQuantBase.exponent))+1
             else: lS = 0
 
-            ## This is used to set up the price precision for the market.
-            tickSizeBase = (Decimal(filters[0]['tickSize'])).as_tuple()
+            # This is used to set up the price precision for the market.
+            tickSizeBase = (Decimal(market['filters'][0]['tickSize'])).as_tuple()
             tS = abs(int(len(tickSizeBase.digits)+tickSizeBase.exponent))+1
 
-            ## This is used to get the markets minimal notation.
-            mN = float(filters[3]['minNotional'])
+            # This is used to get the markets minimal notation.
+            mN = float(market['filters'][3]['minNotional'])
 
-            isFiat = True if market['baseAsset'] in ALL_BTC_PAIRS else False
+            # Put all rules into a json object to pass to the trader.
+            market_rules = {'LOT_SIZE':lS, 'TICK_SIZE':tS, 'MINIMUM_NOTATION':mN, 'isFiat':True if market['quoteAsset'] in ALL_BTC_PAIRS else False, 'invFiatToBTC':INVERT_FOR_BTC_FIAT}
 
-            market_rules = {'LOT_SIZE':lS, 'TICK_SIZE':tS, 'MINIMUM_NOTATION':mN, 'isFiat':isFiat, 'invFiatToBTC':INVERT_FOR_BTC_FIAT}
-
-            traderObject = trader.BaseTrader(
-                market['quoteAsset'], 
-                market['baseAsset'], 
-                self.rest_api, 
-                socket_api=self.socket_api)
-            
-            traderObject.setup_initial_values(
-                self.market_type, 
-                self.run_type, 
-                market_rules)
-
+            # Initilize trader objecta dn also set-up its inital required data.
+            traderObject = trader.BaseTrader(market['quoteAsset'], market['baseAsset'], self.rest_api, socket_api=self.socket_api)
+            traderObject.setup_initial_values(self.market_type, self.run_type, market_rules)
             self.trader_objects.append(traderObject)
 
+        
         ## Show markets that dont exist on the binance exchange.
-        not_found = ''
-        for market in self.trading_markets:
-            if market not in found_markets:
-                not_found += ' '+str(market)
+        if len(self.trading_markets) != len(found_markets):
+            no_market_text = ''
+            for market in [market for market in self.trading_markets if market not in found_markets]:
+                no_market_text+=str(market)+', '
+            logging.warning('Following pairs dont exist: {}'.format(no_market_text[:-2]))
 
-        if not_found != '':
-            logging.info('[BotCore] Following market pairs do no exist: {0}'.format(not_found))
-
-        ## Show markets that dont support the market type
-        not_support_text = ''
-        for market in not_supported:
-            if market not in not_support_text:
+        ## Show markets that dont support the market type.
+        if len(not_supported) > 0:
+            not_support_text = ''
+            for market in not_supported:
                 not_support_text += ' '+str(market)
-
-        if not_support_text != '':
-            logging.info('[BotCore] Following market pairs are not supported for {0}: {1}'.format(self.market_type, not_support_text))
+            logging.warning('[BotCore] Following market pairs are not supported for {}: {}'.format(self.market_type, not_support_text))
 
         valid_tading_markets = [market for market in found_markets if market not in not_supported]
 
-        ## setup the socket
+        ## setup the binance socket.
         for market in valid_tading_markets:
             self.socket_api.set_candle_stream(symbol=market, interval=self.candle_Interval)
             self.socket_api.set_manual_depth_stream(symbol=market, update_speed='1000ms')
 
-        self.socket_api.set_userDataStream(self.rest_api, self.market_type)
+        if self.run_type == 'REAL':
+            self.socket_api.set_userDataStream(self.rest_api, self.market_type)
 
         self.socket_api.BASE_CANDLE_LIMIT = self.max_candles
         self.socket_api.BASE_DEPTH_LIMIT = self.max_depth
@@ -274,7 +237,7 @@ class BotCore():
 
         self.socket_api.start()
 
-        ## check for active trades
+        # Load the wallets.
         if self.run_type == 'REAL':
             user_info = self.rest_api.get_account(self.market_type)
             if self.market_type == 'SPOT':
@@ -290,28 +253,31 @@ class BotCore():
                                         float(balance['free']),
                                         float(balance['locked'])]})
         else:
-            current_tokens = {'BTC':[float(self.MAC), 0.0]}
+            current_tokens = {'BTC':[float(self.base_currency), 0.0]}
 
-        cached_traders_data = self.cache_handler.read_cache_file('traders.json')
+        # Load cached data
+        cached_traders_data = None
+        if os.path.exists(self.cache_dir+CAHCE_FILES[0]):
+            with open(self.cache_dir+CAHCE_FILES[0], 'r') as f:
+                cached_traders_data = json.load(f)['data']
 
-        ## start/setup traders
+        ## Setup the trader objects and start them.
         logging.info('[BotCore] Starting the trader objects.')
         for trader_ in self.trader_objects:
-            wallet_pair = {}
             currSymbol = "{0}{1}".format(trader_.base_asset, trader_.quote_asset)
 
-            if cached_traders_data:
-                for cached_trader in cached_traders_data['data']:
+            # Update trader with cached data (to resume trades/keep records of trades.)
+            if cached_traders_data != '' and cached_traders_data:
+                for cached_trader in cached_traders_data:
                     m_split = cached_trader['market'].split('-')
                     if (m_split[1]+m_split[0]) == currSymbol:
-                        if 'short_position' in cached_trader:
-                            trader_.short_position      = cached_trader['short_position']
-
                         trader_.configuration           = cached_trader['configuration']
                         trader_.custom_conditional_data = cached_trader['custom_conditions']
-                        trader_.long_position           = cached_trader['long_position']
-                        trader_.trade_recorder          = cached_trader['trade_record']
+                        trader_.market_activity         = cached_trader['market_activity']
+                        trader_.trade_recorder          = cached_trader['trade_recorder']
                         trader_.state_data              = cached_trader['state_data']
+
+            wallet_pair = {}
 
             if trader_.quote_asset in current_tokens:
                 wallet_pair.update({trader_.quote_asset:current_tokens[trader_.quote_asset]})
@@ -319,7 +285,7 @@ class BotCore():
             if trader_.base_asset in current_tokens:
                 wallet_pair.update({trader_.base_asset:current_tokens[trader_.base_asset]})
 
-            trader_.start(self.MAC, wallet_pair)
+            trader_.start(self.base_currency, wallet_pair)
 
         logging.debug('[BotCore] Starting connection manager thread.')
         CM_thread = threading.Thread(target=self._connection_manager)
@@ -333,27 +299,19 @@ class BotCore():
         self.coreState = 'RUN'
 
 
-    def stop(self):
-        '''  '''
-        if self.socket_api.socketRunning:
-            self.socket_api.ws.close()
-
-        for trader_ in self.traderObjects:
-            trader_.stop()
-
-        self.coreState = 'STOP'
-
-
     def _file_manager(self):
+        ''' This section is responsible for activly updating the traders cache files. '''
         while self.coreState != 'STOP':
             time.sleep(15)
 
             traders_data = self.get_trader_data()
-            self.cache_handler.save_cache_file(traders_data, 'traders.json')
+            if os.path.exists(self.cache_dir):
+                with open(self.cache_dir+CAHCE_FILES[0], 'w') as f:
+                    json.dump({'lastUpdateTime':time.time() ,'data':traders_data}, f)
 
 
     def _connection_manager(self):
-        '''  '''
+        ''' This section is responsible for re-testing connectiongs in the event of a disconnect. '''
         update_time = 0
         retryCounter = 1
 
@@ -392,6 +350,7 @@ class BotCore():
 
 
     def get_trader_indicators(self):
+        '''  '''
         indicator_data_set = {}
         for _trader in self.trader_objects:
             indicator_data_set.update({_trader.print_pair:_trader.indicators})
@@ -399,6 +358,7 @@ class BotCore():
 
 
     def get_trader_candles(self):
+        '''  '''
         candle_data_set = {}
         for _trader in self.trader_objects:
             sock_symbol = _trader.base_asset+_trader.quote_asset
@@ -406,15 +366,12 @@ class BotCore():
         return(candle_data_set)
 
 
-def start(settings, order_log_path, cache_handler):
-    '''
-    Intilize the bot core object and also the flask object
-    '''
-    global BOT_CORE, host_ip, host_port
+def start(settings, logs_dir, cache_dir):
+    global core_object, host_ip, host_port
 
-    if BOT_CORE == None:
-        BOT_CORE = BotCore(settings, order_log_path, cache_handler)
-        BOT_CORE.start()
+    if core_object == None:
+        core_object = BotCore(settings, logs_dir, cache_dir)
+        core_object.start()
 
     logging.info('[BotCore] Starting traders in {0} mode, market type is {1}.'.format(settings['run_type'], settings['market_type']))
     log = logging.getLogger('werkzeug')

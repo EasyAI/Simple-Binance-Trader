@@ -52,59 +52,44 @@ function build_results_table(data) {
 
         market_pair = current['market'];
 
-        var long_stats_string = '';
-        var short_stats_string = '';
+        market_activity = current['market_activity'];
 
-        if (current['long_position'] != null) {
-            var long_pos = current['long_position'];
+        trade_recorder = current['trade_recorder'];
 
-            if (long_pos['order_type']['S'] == null){
-                long_stats_string  = `Long BUY | Type:${long_pos['order_type']['B']} | Status:${long_pos['order_status']['B']} | Buy Price:${long_pos['buy_price']}`;
-            } else if (long_pos['order_type']['S'] != null) {
-                long_stats_string  = `Long SELL | Type:${long_pos['order_type']['S']} | Status:${long_pos['order_status']['S']} | Buy Price:${long_pos['buy_price']} | Sell Price:${long_pos['sell_price']}`;
-            }
-        }
+        total_price_string  = `${market_activity['order_market_type']} ${market_activity['order_side']} | Type:${market_activity['order_type']} | Status:${market_activity['order_status']} `;
 
-        if (current['short_position'] != null) {
-            var short_pos = current['long_position'];
-            
-            if (short_pos['order_type']['S'] == null){
-                short_stats_string  = `Long BUY | Type:${short_pos['order_type']['B']} | Status:${short_pos['order_status']['B']} | Buy Price:${short_pos['buy_price']}`;
-            } else if (short_pos['order_type']['S'] != null) {
-                short_stats_string  = `Long SELL | Type:${short_pos['order_type']['S']} | Status:${short_pos['order_status']['S']} | Buy Price:${short_pos['buy_price']} | Sell Price:${short_pos['sell_price']}`;
-            }
-        }
-
-        if (short_stats_string != '') {
-            total_price_string = `${long_stats_string}<br>${short_stats_string}`;
+        if (market_activity['order_side'] == 'SELL') {
+            total_price_string  += `| Buy Price:${trade_recorder[trade_recorder.length-1][1]} | Sell Price:${market_activity['price']}`;
         } else {
-            total_price_string = long_stats_string;
+            total_price_string += `| Buy Price:${market_activity['price']}`
         }
-     
+
         buttonStart     = `<a href=# class="small-button green-button" onclick="start_trader(event, '${market_pair}');">Start</a>`;
         buttonPause     = `<a href=# class="small-button amber-button" onclick="pause_trader(event, '${market_pair}');">Pause</a>`;
         buttonRemove    = `<a href=# class="small-button red-button" onclick="delete_trader(event, '${market_pair}');">Remove</a>`;
 
-        long_total = 0;
-        short_total = 0;
-        long_trades = 0;
-        short_trades = 0;
+        // 
 
-        tlist = current['trade_record'];
+        var outcome = 0;
+        var total_trades = 0;
 
-        for (x=0;x<tlist.length;x++){
-            if (tlist[x][5] == 'LONG'){
-                long_total += tlist[x][4]
-                long_trades +=1
-            } else {
-                short_total += tlist[x][4]
-                short_trades += 1
+        if (trade_recorder.length >= 2) {
+            range = trade_recorder.length/2
+            for (i = 0; i < (range); i++) {
+                buy_order = trade_recorder[(range*2)-2]
+                sell_order = trade_recorder[range*2-1]
+
+                buy_value = buy_order[1]*buy_order[2]
+                sell_value = sell_order[1]*buy_order[2]
+
+                outcome = sell_value-buy_value
+                total_trades += 1
             }
         }
 
         row.innerHTML   = `
             <td id="market-pair">${market_pair}</td>
-            <td id="main-data">State: ${current['state_data']['runtime_state']} | Trades: L:${long_trades}, S:${short_trades} | Overall: L:${Math.round(long_total*100000000)/100000000}, S:${Math.round(short_total*100000000)/100000000} | Last Update: ${current['state_data']['last_update_time']} | Last Price: ${current['market_prices']['lastPrice']}<br>
+            <td id="main-data">State: ${current['state_data']['runtime_state']} | Trades: ${total_trades} | Overall: ${Math.round(outcome*100000000)/100000000} | Last Update: ${current['state_data']['last_update_time']} | Last Price: ${current['market_prices']['lastPrice']}<br>
             ${total_price_string}</td>
             <td id="remove-button">${buttonStart} ${buttonPause} ${buttonRemove}</td>
             `;

@@ -1,7 +1,5 @@
-
 #! /usr/bin/env python3
 
-import time
 import logging
 import numpy as np
 import technical_indicators as TI
@@ -19,79 +17,60 @@ def technical_indicators(candles):
     low_prices      = [candle[3] for candle in candles]
     close_prices    = [candle[4] for candle in candles]
     
-    indicators.update({'MACD':TI.get_MACD(close_prices)})
-    indicators.update({'MFI':TI.get_MFI(candles)})
-    indicators.update({'MA_50':TI.get_SMA(close_prices, 50)})
+    indicators.update({'macd':TI.get_MACD(close_prices)})
 
     return(indicators)
 
 
-def other_conditions(custom_conditional_data, position_information, position_type, candles, indicators, symbol, btc_base):
-    custom_conditional_data = custom_conditional_data
+def other_conditions(custom_conditional_data, position_information, previous_trades, position_type, candles, indicators, symbol):
     can_order = True
 
+    ## If trader has finished trade allow it to continue trading straight away.
     if position_information['market_status'] == 'COMPLETE_TRADE':
-        if position_information['sell_time'] > 60:
-            position_information['market_status'] = 'TRADING'
+        position_information['market_status'] = 'TRADING'
 
     position_information.update({'can_order':can_order})
     return(custom_conditional_data, position_information)
 
 
-def long_exit_conditions(custom_conditional_data, trade_information, indicators, prices, candles, symbol, btc_base):
-    '''
-    The current order types that are supported are
-    limit orders = LIMIT
-    stop loss orders = STOP_LOSS_LIMIT
-    market orders = MARKET
-    '''
-    ## Set the indicators used for sell conditions:
-    macd = indicators['MACD']
+def long_exit_conditions(custom_conditional_data, trade_information, indicators, prices, candles, symbol):
+    macd = indicators['macd']
 
-    ## Logic for SELL conditions.
-    if  macd[0]['macd'] < macd[0]['signal']:
+    if macd[0]['macd'] < macd[1]['macd'] and macd[1]['hist'] < macd[0]['hist']:
         return({'order_type':'SIGNAL', 
             'side':'SELL', 
             'description':'Long exit signal', 
-            'ptype':'MARKET'})
+            'order_type':'MARKET'})
 
-    return({'order_type':'WAIT'})
-
-
-    if trade_information['long_order_type']['S'] == 'STOP_LOSS':
+    if trade_information['order_type'] == 'STOP_LOSS':
         return
-    price = float('{0:.{1}f}'.format((trade_information['buy_price']-(trade_information['buy_price']*0.01)), pRounding))
+
+    price = float('{0:.{1}f}'.format((trade_information['buy_price']-(trade_information['buy_price']*0.004)), pRounding))
     return({'order_type':'STOP_LOSS', 
             'side':'SELL', 
             'price':price,
             'stopPrice':price,
             'description':'Long exit stop-loss', 
-            'ptype':'STOP_LOSS_LIMIT'})
+            'order_type':'STOP_LOSS_LIMIT'})
+
     return({'order_type':'WAIT'})
 
 
-def long_entry_conditions(custom_conditional_data, trade_information, indicators, prices, candles, symbol, btc_base):
-    '''
-    The current order types that are supported are
-    limit orders = LIMIT
-    market orders = MARKET
-    '''
-    ## Set the indicators used to test the conditions:
-    macd = indicators['MACD']
+def long_entry_conditions(custom_conditional_data, trade_information, indicators, prices, candles, symbol):
+    macd = indicators['macd']
 
-    ## Logic for BUY conditions.
-    if macd[0]['hist'] > 0 and macd[0]['macd'] > macd[1]['macd'] and macd[0]['macd'] > macd[0]['signal']:
+    if macd[0]['macd'] > macd[1]['macd'] and macd[1]['hist'] > macd[0]['hist']:
         return({'order_type':'SIGNAL', 
-            'side':'BUY', 
-            'description':'long entry signal', 
-            'ptype':'MARKET'})
+                'side':'BUY', 
+                'description':'Long entry signal', 
+                'order_type':'MARKET'})
 
     return({'order_type':'WAIT'})
 
 
-def short_exit_conditions(custom_conditional_data, trade_information, indicators, prices, candles, symbol, btc_base):
+def short_exit_conditions(custom_conditional_data, trade_information, indicators, prices, candles, symbol):
     pass
 
 
-def short_entry_conditions(custom_conditional_data, trade_information, indicators, prices, candles, symbol, btc_base):
+def short_entry_conditions(custom_conditional_data, trade_information, indicators, prices, candles, symbol):
     pass
