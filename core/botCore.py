@@ -77,7 +77,7 @@ def update_trader():
     post_data = request.get_json()
     current_trader = None
     for trader in core_object.trader_objects:
-        if trader.symbol == post_data['market']:
+        if trader.print_pair == post_data['market']:
             current_trader = trader
             break
 
@@ -87,12 +87,12 @@ def update_trader():
     elif post_data['action'] == 'remove':
         trader.stop()
     elif post_data['action'] == 'start':
-        if trader.runtime_state == 'FORCE_PAUSE':
-            trader.runtime_state = 'RUN'
+        if trader.state_data['runtime_state'] == 'FORCE_PAUSE':
+            trader.state_data['runtime_state'] = 'RUN'
 
     elif post_data['action'] == 'pause':
-        if trader.runtime_state == 'RUN':
-            trader.runtime_state = 'FORCE_PAUSE'
+        if trader.state_data['runtime_state'] == 'RUN':
+            trader.state_data['runtime_state'] = 'FORCE_PAUSE'
 
     else:
         return(json.dumps({'call':False}))
@@ -130,7 +130,7 @@ def web_updater():
                 lastHash = currHash
                 SOCKET_IO.emit('current_traders_data', {'data':traderData})
 
-        time.sleep(.25)
+        time.sleep(2)
 
 
 class BotCore():
@@ -149,6 +149,8 @@ class BotCore():
 
         self.run_type           = settings['run_type']
         self.market_type        = settings['market_type']
+
+        self.update_bnb_balance = settings['update_bnb_balance']
 
         self.max_candles        = settings['max_candles']
         self.max_depth          = settings['max_depth']
@@ -170,7 +172,7 @@ class BotCore():
         ## check markets
         found_markets = []
         not_supported = []
-        for market in self.rest_api.get_exchange_info()['symbols']:
+        for market in self.rest_api.get_exchangeInfo()['symbols']:
             fmtMarket = '{0}-{1}'.format(market['quoteAsset'], market['baseAsset'])
 
             # If the current market is not in the trading markets list then skip.
@@ -287,6 +289,15 @@ class BotCore():
 
             trader_.start(self.base_currency, wallet_pair)
 
+        logging.debug('[BotCore] Starting trader manager')
+        TM_thread = threading.Thread(target=self._trader_manager)
+        TM_thread.start()
+
+        if self.update_bnb_balance:
+            logging.debug('[BotCore] Starting BNB manager')
+            BNB_thread = threading.Thread(target=self._bnb_manager)
+            BNB_thread.start()
+
         logging.debug('[BotCore] Starting connection manager thread.')
         CM_thread = threading.Thread(target=self._connection_manager)
         CM_thread.start()
@@ -297,6 +308,34 @@ class BotCore():
 
         logging.info('[BotCore] BotCore successfully started.')
         self.coreState = 'RUN'
+
+
+    def _trader_manager(self):
+        ''' '''
+        while self.coreState != 'STOP':
+            pass
+
+
+
+    def _bnb_manager(self):
+        ''' '''
+        last_wallet_update_time = 0
+
+        while self.coreState != 'STOP':
+            socket_buffer_global = self.socket_api.socketBuffer
+
+            # If outbound postion is seen then wallet has updated.
+            if 'outboundAccountPosition' in socket_buffer_global:
+                if last_wallet_update_time != socket_buffer_global['outboundAccountPosition']['E']:
+                    last_wallet_update_time = socket_buffer_global['outboundAccountPosition']['E']
+
+                    for wallet in socket_buffer_global['outboundAccountPosition']['B']:
+                        if wallet['a'] == 'BNB':
+                            if float(wallet['f']) < 0.01:
+                                bnb_order = self.rest_api.place_order(self.market_type, symbol='BNBBTC', side='BUY', type='MARKET', quantity=0.1)
+                                print(wallet)
+                                print(bnb_order)
+            time.sleep(2)
 
 
     def _file_manager(self):

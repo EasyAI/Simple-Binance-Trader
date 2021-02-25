@@ -26,7 +26,7 @@ BASE_MARKET_LAYOUT = {
     'stopPrice':0.0,         # The stopPrice relate
     'stopLimitPrice':0.0,    # The stopPrice relate
     'tokens_holding':0.0,    # Amount of tokens being held.
-    'order_id':0,            # The ID that is tied to the placed order.
+    'order_id':None,         # The ID that is tied to the placed order.
     'order_status':0,        # The type of the order that is placed
     'order_side':'BUY',      # The status of the current order.
     'order_type':'WAIT',         
@@ -401,7 +401,7 @@ class BaseTrader(object):
                             trade_done = True
                             token_quantity = wallet_pair[self.base_asset][0]
                     elif order_seen['X'] == 'PARTIALLY_FILLED' and cp['order_status'] != 'LOCKED':
-                        cp['order_status']['B'] = 'LOCKED'
+                        cp['order_status'] = 'LOCKED'
             else:
                 if market_type == 'LONG':
                     trade_done = True if ((self.market_prices['lastPrice'] <= cp['price']) or (cp['order_type'] == 'MARKET')) else False
@@ -417,7 +417,7 @@ class BaseTrader(object):
                         token_quantity = float(order_seen['q'])
                         trade_done = True
                     elif order_seen['X'] == 'PARTIALLY_FILLED' and cp['order_status'] != 'LOCKED':
-                        cp['order_status']['S'] = 'LOCKED'
+                        cp['order_status'] = 'LOCKED'
             else:
                 if market_type == 'LONG':
                     if cp['order_type'] != 'STOP_LOSS_LIMIT':
