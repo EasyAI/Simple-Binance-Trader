@@ -120,8 +120,7 @@ class BaseTrader(object):
             'run_type':run_type,
             'base_asset':self.base_asset,
             'quote_asset':self.quote_asset,
-            'symbol':'{0}{1}'.format(self.base_asset, self.quote_asset),
-            'btc_base_pair':True if self.base_asset == 'BTC' else False
+            'symbol':'{0}{1}'.format(self.base_asset, self.quote_asset)
         })
 
         ## Set initial values for market price.
@@ -239,13 +238,8 @@ class BaseTrader(object):
 
             # Check to make sure there is enough crypto to place orders.
             if self.state_data['runtime_state'] == 'PAUSE_INSUFBALANCE':
-                if self.rules['isFiat']:
-                    baseKey =  [key for key in self.wallet_pair.keys() if key != 'BTC'][0]
-                    if (self.wallet_pair[baseKey][0] >= (self.state_data['base_currency']*self.market_prices['lastPrice'])):
-                        self.state_data['runtime_state'] = 'RUN' 
-                else:
-                    if self.wallet_pair['BTC'][0] > self.state_data['base_currency']:
-                       self.state_data['runtime_state'] = 'RUN' 
+                if self.wallet_pair[self.quote_asset][0] > self.state_data['base_currency']:
+                    self.state_data['runtime_state'] = 'RUN' 
 
             if not self.state_data['runtime_state'] in ['STANDBY', 'FORCE_STANDBY', 'FORCE_PAUSE']:
                 ## Call for custom conditions that can be used for more advanced managemenet of the trader.
@@ -351,16 +345,7 @@ class BaseTrader(object):
                 buyTime = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(trB[0]))
                 sellTime = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(trS[0]))
 
-                # calculate outcome and outcome precentage.
-                if self.rules['isFiat']:
-                    outcome_prec = (abs(trS[1]-trB[1])/trB[1]) # TO get pre precentage need to times by 100.
-                    outcome = ((outcome_prec*trS[2])/trS[1])
-
-                    if trS[1]-trB[1] < 0:
-                        # If outcome is positive then add the outcome to the total.
-                        outcome = 0-outcome
-                else:
-                    outcome = ((trS[1]-trB[1])*trS[2])
+                outcome = ((trS[1]-trB[1])*trS[2])
 
                 trade_details = 'BuyTime:{0}, BuyPrice:{1:.8f}, BuyQuantity:{2:.8f}, BuyType:{3}, SellTime:{4}, SellPrice:{5:.8f}, SellQuantity:{6:.8f}, SellType:{7}, Outcome:{8:.8f}\n'.format(
                     buyTime, trB[1], trB[2], trB[3], sellTime, trS[1], trS[2], trS[3], outcome) # (Sellprice - Buyprice) * tokensSold
@@ -504,7 +489,6 @@ class BaseTrader(object):
                     self.state_data['runtime_state'] = 'PAUSE_INSUFBALANCE'
                 elif order_results['data']['code'] == -2011:
                     self.state_data['runtime_state'] = 'CHECK_ORDERS'
-                print(order_results['data'])
                 return
 
             logging.info('[BaseTrader] {0} Order placed for {1}.'.format(self.print_pair, new_order['order_type']))
@@ -558,14 +542,11 @@ class BaseTrader(object):
         ## Calculate the quantity amount for the BUY/SELL side for long/short real/test trades.
         quantity = None
         if order['side'] == 'BUY':
-            if self.rules['isFiat']:
-                quantity = float(self.state_data['base_currency'])
-            else:
-                quantity = float(self.state_data['base_currency'])/float(self.market_prices['bidPrice'])
+            quantity = float(self.state_data['base_currency'])/float(self.market_prices['bidPrice'])
 
         elif order['side'] == 'SELL':
-            if self.rules['isFiat']:
-                quantity = self.trade_recorder[-1][2]
+            if 'order_prec' in order:
+                quantity = ((float(order['order_prec']/100))*float(self.trade_recorder[-1][2]))
             else:
                 quantity = float(self.trade_recorder[-1][2])
 
