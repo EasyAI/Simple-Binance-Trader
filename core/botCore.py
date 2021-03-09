@@ -32,9 +32,6 @@ host_port   = ''
 
 CAHCE_FILES = ['traders.json']
 
-ALL_BTC_PAIRS = ['USDT', 'BKRW' 'TUSD', 'BUSD', 'USDC', 'PAX', 'AUD', 'BIDR', 'DAI', 'EUR', 'GBP', 'IDRT', 'NGN', 'RUB', 'TRY', 'ZAR', 'UAH']
-INVERT_FOR_BTC_FIAT = False
-
 
 @APP.context_processor
 def override_url_for():
@@ -77,7 +74,7 @@ def update_trader():
     post_data = request.get_json()
     current_trader = None
     for trader in core_object.trader_objects:
-        if trader.symbol == post_data['market']:
+        if trader.print_pair == post_data['market']:
             current_trader = trader
             break
 
@@ -87,12 +84,12 @@ def update_trader():
     elif post_data['action'] == 'remove':
         trader.stop()
     elif post_data['action'] == 'start':
-        if trader.runtime_state == 'FORCE_PAUSE':
-            trader.runtime_state = 'RUN'
+        if trader.state_data['runtime_state'] == 'FORCE_PAUSE':
+            trader.state_data['runtime_state'] = 'RUN'
 
     elif post_data['action'] == 'pause':
-        if trader.runtime_state == 'RUN':
-            trader.runtime_state = 'FORCE_PAUSE'
+        if trader.state_data['runtime_state'] == 'RUN':
+            trader.state_data['runtime_state'] = 'FORCE_PAUSE'
 
     else:
         return(json.dumps({'call':False}))
@@ -130,7 +127,7 @@ def web_updater():
                 lastHash = currHash
                 SOCKET_IO.emit('current_traders_data', {'data':traderData})
 
-        time.sleep(.25)
+        time.sleep(2)
 
 
 class BotCore():
@@ -150,9 +147,14 @@ class BotCore():
         self.run_type           = settings['run_type']
         self.market_type        = settings['market_type']
 
+        self.update_bnb_balance = settings['update_bnb_balance']
+
         self.max_candles        = settings['max_candles']
         self.max_depth          = settings['max_depth']
 
+        pair_one = settings['trading_markets'][0]
+
+        self.quote_asset        = pair_one[:pair_one.index('-')]
         self.base_currency      = settings['trading_currency']
         self.candle_Interval    = settings['trader_interval']
 
@@ -170,7 +172,8 @@ class BotCore():
         ## check markets
         found_markets = []
         not_supported = []
-        for market in self.rest_api.get_exchange_info()['symbols']:
+
+        for market in self.rest_api.get_exchangeInfo()['symbols']:
             fmtMarket = '{0}-{1}'.format(market['quoteAsset'], market['baseAsset'])
 
             # If the current market is not in the trading markets list then skip.
@@ -197,7 +200,7 @@ class BotCore():
             mN = float(market['filters'][3]['minNotional'])
 
             # Put all rules into a json object to pass to the trader.
-            market_rules = {'LOT_SIZE':lS, 'TICK_SIZE':tS, 'MINIMUM_NOTATION':mN, 'isFiat':True if market['quoteAsset'] in ALL_BTC_PAIRS else False, 'invFiatToBTC':INVERT_FOR_BTC_FIAT}
+            market_rules = {'LOT_SIZE':lS, 'TICK_SIZE':tS, 'MINIMUM_NOTATION':mN}
 
             # Initilize trader objecta dn also set-up its inital required data.
             traderObject = trader.BaseTrader(market['quoteAsset'], market['baseAsset'], self.rest_api, socket_api=self.socket_api)
@@ -253,7 +256,7 @@ class BotCore():
                                         float(balance['free']),
                                         float(balance['locked'])]})
         else:
-            current_tokens = {'BTC':[float(self.base_currency), 0.0]}
+            current_tokens = {self.quote_asset:[float(self.base_currency), 0.0]}
 
         # Load cached data
         cached_traders_data = None
@@ -287,6 +290,15 @@ class BotCore():
 
             trader_.start(self.base_currency, wallet_pair)
 
+        logging.debug('[BotCore] Starting trader manager')
+        TM_thread = threading.Thread(target=self._trader_manager)
+        TM_thread.start()
+
+        if self.update_bnb_balance:
+            logging.debug('[BotCore] Starting BNB manager')
+            BNB_thread = threading.Thread(target=self._bnb_manager)
+            BNB_thread.start()
+
         logging.debug('[BotCore] Starting connection manager thread.')
         CM_thread = threading.Thread(target=self._connection_manager)
         CM_thread.start()
@@ -297,6 +309,33 @@ class BotCore():
 
         logging.info('[BotCore] BotCore successfully started.')
         self.coreState = 'RUN'
+
+
+    def _trader_manager(self):
+        ''' '''
+        while self.coreState != 'STOP':
+            pass
+
+
+    def _bnb_manager(self):
+        ''' This will manage BNB balance and update if there is low BNB in account. '''
+        last_wallet_update_time = 0
+
+        while self.coreState != 'STOP':
+            socket_buffer_global = self.socket_api.socketBuffer
+
+            # If outbound postion is seen then wallet has updated.
+            if 'outboundAccountPosition' in socket_buffer_global:
+                if last_wallet_update_time != socket_buffer_global['outboundAccountPosition']['E']:
+                    last_wallet_update_time = socket_buffer_global['outboundAccountPosition']['E']
+
+                    for wallet in socket_buffer_global['outboundAccountPosition']['B']:
+                        if wallet['a'] == 'BNB':
+                            if float(wallet['f']) < 0.01:
+                                bnb_order = self.rest_api.place_order(self.market_type, symbol='BNBBTC', side='BUY', type='MARKET', quantity=0.1)
+                                print(wallet)
+                                print(bnb_order)
+            time.sleep(2)
 
 
     def _file_manager(self):
@@ -341,16 +380,15 @@ class BotCore():
 
 
     def get_trader_data(self):
-        '''  '''
+        ''' This can be called to return data for each of the active traders. '''
         rData = []
-
         for trader_ in self.trader_objects:
             rData.append(trader_.get_trader_data())
         return(rData)
 
 
     def get_trader_indicators(self):
-        '''  '''
+        ''' This can be called to return the indicators that are used by the traders (Will be used to display web UI activity.) '''
         indicator_data_set = {}
         for _trader in self.trader_objects:
             indicator_data_set.update({_trader.print_pair:_trader.indicators})
@@ -358,10 +396,10 @@ class BotCore():
 
 
     def get_trader_candles(self):
-        '''  '''
+        ''' This can be called to return the candle data for the traders (Will be used to display web UI activity.) '''
         candle_data_set = {}
         for _trader in self.trader_objects:
-            sock_symbol = _trader.base_asset+_trader.quote_asset
+            sock_symbol = str(_trader.base_asset)+str(_trader.quote_asset)
             candle_data_set.update({_trader.print_pair:self.socket_api.get_live_candles(sock_symbol)})
         return(candle_data_set)
 

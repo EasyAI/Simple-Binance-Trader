@@ -26,6 +26,9 @@ IS_TEST=True
 # Allow trader to be run in either spot or margin type.
 MARKET_TYPE=SPOT
 
+# Automatically update the BNB balance when low (for trading fees, only applicable to real trading)
+UPDATE_BNB_BALANCE=True
+
 # Interval used for the trader (1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d).
 TRADER_INTERVAL=15m
 
@@ -87,6 +90,8 @@ def settings_reader():
                 data = int(data)
 
             settings_file_data.update({key.lower():data})
+
+    print(settings_file_data)
 
     return(settings_file_data)
 
