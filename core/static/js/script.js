@@ -82,7 +82,7 @@ function build_results_table(data) {
                 buy_value = buy_order[1]*buy_order[2]
                 sell_value = sell_order[1]*buy_order[2]
 
-                outcome = sell_value-buy_value
+                outcome += sell_value-buy_value
                 total_trades += 1
             }
         }

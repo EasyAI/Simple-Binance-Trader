@@ -30,7 +30,7 @@ core_object    = None
 host_ip     = ''
 host_port   = ''
 
-CAHCE_FILES = ['traders.json']
+CAHCE_FILES = 'traders.json'
 
 
 @APP.context_processor
@@ -345,7 +345,8 @@ class BotCore():
 
             traders_data = self.get_trader_data()
             if os.path.exists(self.cache_dir):
-                with open(self.cache_dir+CAHCE_FILES[0], 'w') as f:
+                file_path = '{0}{1}'.format(self.cache_dir,CAHCE_FILES)
+                with open(file_path, 'w') as f:
                     json.dump({'lastUpdateTime':time.time() ,'data':traders_data}, f)
 
 
