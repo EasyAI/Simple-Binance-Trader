@@ -49,22 +49,26 @@ MAX_DEPTH=
 
 
 def settings_reader():
-    # Setup settings file object with initial default variables.
+    # Setting reader function to parse over the settings file and collect kv pairs.
+
+    ## Setup settings file object with initial default variables.
     settings_file_data = {'public_key':'', 'private_key':'', 'host_ip':'127.0.0.1', 'host_port':5000, 'max_candles':500,'max_depth':50}
 
-    # Read the settings file and extract the fields.
+    ## Read the settings file and extract the fields.
     with open(SETTINGS_FILE_NAME, 'r') as f:
         for line in f.readlines():
 
+            ### Check for kv line.
             if not('=' in line) or line[0] == '#':
                 continue
 
             key, data = line.split('=')
 
-            if data != None and data != '\n':
-                data = data.replace('\n', '')
-            else:
+            ### Check if data holds a value.
+            if data == None or data == '\n':
                 continue
+
+            data = data.replace('\n', '')
 
             if key == 'IS_TEST':
                 data = 'TEST' if data.upper() == 'TRUE' else 'REAL'
@@ -91,25 +95,23 @@ def settings_reader():
 
             settings_file_data.update({key.lower():data})
 
-    print(settings_file_data)
-
     return(settings_file_data)
 
 
 if __name__ == '__main__':
 
-    # Check and make cache/logs dir.
+    ## Check and make cache/logs dir.
     if not(os.path.exists(LOGS_DIR)):
         os.makedirs(LOGS_DIR, exist_ok=True)
     if not(os.path.exists(CACHE_DIR)):
         os.makedirs(CACHE_DIR, exist_ok=True)
 
-    # Load settings and pass to core.
+    ## Load settings/create settings file.
     if os.path.exists(SETTINGS_FILE_NAME):
         settings = settings_reader()
         botCore.start(settings, LOGS_DIR, CACHE_DIR)
     else:
         with open(SETTINGS_FILE_NAME, 'w') as f:
             f.write(DEFAULT_SETTINGS_DATA)
-    print('Created settings.conf file.')
+        print('Created settings.conf file.')
 

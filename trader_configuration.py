@@ -5,19 +5,22 @@ import technical_indicators as TI
 ## Minimum price rounding.
 pRounding = 8
 
-#time, open, high, low, close, volume
-
 def technical_indicators(candles):
     indicators = {}
 
+    time_values     = [candle[0] for candle in candles]
     open_prices     = [candle[1] for candle in candles]
     high_prices     = [candle[2] for candle in candles]
     low_prices      = [candle[3] for candle in candles]
     close_prices    = [candle[4] for candle in candles]
-    
-    indicators.update({'macd':TI.get_MACD(close_prices)})
+
+    indicators.update({'macd':TI.get_MACD(close_prices, time_values=time_values, map_time=True)})
+
+    indicators.update({'ema':{}})
+    indicators['ema'].update({'ema200':TI.get_EMA(close_prices, 200, time_values=time_values, map_time=True)})
 
     return(indicators)
+
 
 '''
 --- Current Supported Order ---
@@ -66,6 +69,7 @@ def technical_indicators(candles):
     Candles are structured in a multidimensional list as follows:
         [[time, open, high, low, close, volume], ...]
 '''
+
 
 def other_conditions(custom_conditional_data, position_information, previous_trades, position_type, candles, indicators, symbol):
     can_order = True

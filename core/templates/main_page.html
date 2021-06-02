@@ -1,20 +1,42 @@
-{% extends "page_template.html" %}
-{% block content %}
-<main> 
-	<h1>Trader Overview</h1>
-	<table>
-		<tbody id="results-list"></tbody>
-	</table>
-	<html>
-  <head>
-    
-    <script type="text/javascript">
-      
-    </script>
-  </head>
-  <body>
-    <div id="chart_div" style="width: 900px; height: 500px;"></div>
-  </body>
+<html>
+    <head>
+        <title>Trader Control Panel</title>
+        <meta charst="en">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="X-UA-Compatible" content="ie=edge">
+
+        <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+        <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+        <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
+        <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.js"></script>
+
+        <!-- This is used to load the modules that I made and will be using. -->
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+        <script type="text/javascript">
+            var ip = '{{ data.host.IP }}';
+            var port = '{{ data.host.Port }}';
+        </script>
+        
+    </head>
+    <body>
+        {% from 'jinja_templates.html' import overview_data_panel %}
+        {% from 'jinja_templates.html' import market_data_panel %}
+
+        <div class="sidebar">
+            <h2>Binance Trader</h2>
+            <ul>
+                <li><a href=# onclick="hide_section(event, 'Overview');">Overview</a></li>
+            {% for market_symbol in data.market_symbols %}
+                <li><a href=# onclick="hide_section(event, '{{ market_symbol }}');">{{ market_symbol }}</a></li>
+            {% endfor %}
+            </ul>
+        </div>
+        <main>
+            {{ overview_data_panel(data.market_symbols) }}
+            {% for market_symbol in data.market_symbols %}
+                {{ market_data_panel(market_symbol) }}
+            {% endfor %}
+        </main>
+        <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    </body>
 </html>
-</main>
-{% endblock content %}

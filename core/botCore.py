@@ -1,14 +1,9 @@
 #! /usr/bin/env python3
-
-'''
-Botcore
-
-'''
 import os
-import os.path
 import sys
 import time
 import json
+import os.path
 import hashlib
 import logging
 import threading
@@ -16,20 +11,30 @@ from decimal import Decimal
 from flask_socketio import SocketIO
 from flask import Flask, render_template, url_for, request
 
-## Binance API modules
 from binance_api import rest_master
 from binance_api import socket_master
 
 from . import trader
 
+
+MULTI_DEPTH_INDICATORS = ['ema', 'sma', 'rma', 'order']
+
+# Initilize globals.
+
+## Setup flask app/socket
 APP         = Flask(__name__)
 SOCKET_IO   = SocketIO(APP)
 
-##
-core_object    = None
+## Initilize base core object.
+core_object = None
+
+started_updater = False
+
+## Initilize IP/port pair globals.
 host_ip     = ''
 host_port   = ''
 
+## Set traders cache file name.
 CAHCE_FILES = 'traders.json'
 
 
@@ -39,9 +44,7 @@ def override_url_for():
 
 
 def dated_url_for(endpoint, **values):
-    '''
-    This is uses to overide the normal cache for loading static resources.
-    '''
+    # Override to prevent cached assets being used.
     if endpoint == 'static':
         filename = values.get('filename', None)
         if filename:
@@ -54,118 +57,209 @@ def dated_url_for(endpoint, **values):
 
 @APP.route('/', methods=['GET'])
 def control_panel():
-    web_updater_thread = threading.Thread(target=web_updater)
-    web_updater_thread.start()
+    # Base control panel configuration.
+    global started_updater 
 
-    start_up_data = {'hostIP':host_ip, 
-                    'hostPort':host_port}
+    ## Web updater used for live updating.
+    if not(started_updater):
+        started_updater = True
+        web_updater_thread = threading.Thread(target=web_updater)
+        web_updater_thread.start()
+
+    ## Set socket ip/port.
+    start_up_data = {
+        'host':{'IP': host_ip, 'Port': host_port},
+        'market_symbols': core_object.trading_markets
+    }
 
     return(render_template('main_page.html', data=start_up_data))
 
 
-@APP.route('/rest-api/v1/add_trader', methods=['POST'])
-def add_trader():
-    print(request.get_json())
-    return(json.dumps({'call':True}))
-
-
 @APP.route('/rest-api/v1/trader_update', methods=['POST'])
 def update_trader():
-    post_data = request.get_json()
-    current_trader = None
-    for trader in core_object.trader_objects:
-        if trader.print_pair == post_data['market']:
-            current_trader = trader
-            break
+    # Base API for managing trader interaction.
+    data = request.get_json()
+
+    ## Check if specified bot exists.
+    current_trader = api_error_check(data)
 
     if current_trader == None:
-        return(json.dumps({'call':False}))
-
-    elif post_data['action'] == 'remove':
-        trader.stop()
-    elif post_data['action'] == 'start':
-        if trader.state_data['runtime_state'] == 'FORCE_PAUSE':
-            trader.state_data['runtime_state'] = 'RUN'
-
-    elif post_data['action'] == 'pause':
-        if trader.state_data['runtime_state'] == 'RUN':
-            trader.state_data['runtime_state'] = 'FORCE_PAUSE'
-
+        ## No trader therefore return false.
+        return(json.dumps({'call':False, 'message':'INVALID_TRADER'}))
+    elif data['action'] == 'start':
+        ## Updating trader status to running.
+        if current_trader.state_data['runtime_state'] == 'FORCE_PAUSE':
+            current_trader.state_data['runtime_state'] = 'RUN'
+    elif data['action'] == 'pause':
+        ## Updating trader status to paused.
+        if current_trader.state_data['runtime_state'] == 'RUN':
+            current_trader.state_data['runtime_state'] = 'FORCE_PAUSE'
     else:
-        return(json.dumps({'call':False}))
+        ## If action was not found return false
+        return(json.dumps({'call':False, 'message':'INVALID_ACTION'}))
 
     return(json.dumps({'call':True}))
+
+
+@APP.route('/rest-api/v1/get_trader_charting', methods=['GET'])
+def get_trader_charting():
+    # Endpoint to pass trader indicator data.
+    market = request.args.get('market')
+    limit = int(request.args.get('limit'))
+    data = {'market':market}
+
+    ## Check if specified bot exists.
+    current_trader = api_error_check(data)
+
+    if current_trader == None:
+        ## No trader therefore return false.
+        return(json.dumps({'call':False, 'message':'INVALID_TRADER'}))
+
+    candle_data = core_object.get_trader_candles(current_trader.print_pair)[:limit]
+    indicator_data = core_object.get_trader_indicators(current_trader.print_pair)
+    short_indicator_data = shorten_indicators(indicator_data, candle_data[-1][0])
+
+    return(json.dumps({'call':True, 'data':{'market':market, 'indicators':short_indicator_data, 'candles':candle_data}}))
 
 
 @APP.route('/rest-api/v1/get_trader_indicators', methods=['GET'])
 def get_trader_indicators():
-    print(request.get_json())
-    return(json.dumps({'call':True, 'data':core_object.get_trader_indicators()}))
+    # Endpoint to pass trader indicator data.
+    market = request.args.get('market')
+    limit = int(request.args.get('limit'))
+    data = {'market':market}
+
+    ## Check if specified bot exists.
+    current_trader = api_error_check(data)
+
+    if current_trader == None:
+        ## No trader therefore return false.
+        return(json.dumps({'call':False, 'message':'INVALID_TRADER'}))
+
+    indicator_data = core_object.get_trader_indicators(current_trader.print_pair)
+
+    return(json.dumps({'call':True, 'data':{'market':market, 'indicators':indicator_data}}))
 
 
 @APP.route('/rest-api/v1/get_trader_candles', methods=['GET'])
 def get_trader_candles():
-    print(request.get_json())
-    return(json.dumps({'call':True, 'data':core_object.get_trader_candles()}))
+    # Endpoint to pass trader candles.
+    market = request.args.get('market')
+    limit = int(request.args.get('limit'))
+    data = {'market':market}
 
+    ## Check if specified bot exists.
+    current_trader = api_error_check(data)
+
+    if current_trader == None:
+        ## No trader therefore return false.
+        return(json.dumps({'call':False, 'message':'INVALID_TRADER'}))
+
+    candle_data = core_object.get_trader_candles(current_trader.print_pair)[:limit]
+
+    return(json.dumps({'call':True, 'data':{'market':market, 'candles':candle_data}}))
 
 
 @APP.route('/rest-api/v1/test', methods=['GET'])
 def test_rest_call():
-    return(json.dumps({'call':True,'data':'Hello World'}))
+    # API endpoint test
+    return(json.dumps({'call':True, 'message':'HELLO WORLD!'}))
+
+
+def shorten_indicators(indicators, end_time):
+    base_indicators = {}
+
+    for ind in indicators:
+        if ind in MULTI_DEPTH_INDICATORS:
+            base_indicators.update({ind:{}})
+            for sub_ind in indicators[ind]:
+                base_indicators[ind].update({sub_ind:[ [val[0] if ind != 'order' else val[0]*1000,val[1]] for val in indicators[ind][sub_ind] if (val[0] if ind != 'order' else val[0]*1000) > end_time ]})
+        else:
+            base_indicators.update({ind:[ [val[0],val[1]] for val in indicators[ind] if val[0] > end_time]})
+
+    return(base_indicators)
+
+
+def api_error_check(data):
+    ## Check if specified bot exists.
+    current_trader = None
+    for trader in core_object.trader_objects:
+        if trader.print_pair == data['market']:
+            current_trader = trader
+            break
+    return(current_trader)
 
 
 def web_updater():
+    # Web updater use to update live via socket.
     lastHash = None
 
     while True:
         if core_object.coreState == 'RUN':
+            ## Get trader data and hash it to find out if there have been any changes.
             traderData = core_object.get_trader_data()
             currHash = hashlib.md5(str(traderData).encode())
 
             if lastHash != currHash:
+                ## Update any new changes via socket.
                 lastHash = currHash
-                SOCKET_IO.emit('current_traders_data', {'data':traderData})
+                total_bulk_data = []
+                for trader in traderData:
+                    bulk_data = {}
+                    bulk_data.update({'market':trader['market']})
+                    bulk_data.update({'trade_recorder':trader['trade_recorder']})
+                    bulk_data.update({'wallet_pair':trader['wallet_pair']})
 
-        time.sleep(2)
+                    bulk_data.update(trader['custom_conditions'])
+                    bulk_data.update(trader['market_activity'])
+                    bulk_data.update(trader['market_prices'])
+                    bulk_data.update(trader['state_data'])
+                    total_bulk_data.append(bulk_data)
+
+                SOCKET_IO.emit('current_traders_data', {'data':total_bulk_data})
+                time.sleep(.8)
 
 
 class BotCore():
 
     def __init__(self, settings, logs_dir, cache_dir):
-        ''' 
-        
-        '''
+        # Initilization for the bot core managment object.
         logging.info('[BotCore] Initilizing the BotCore object.')
 
+        ## Setup binance REST and socket API.
         self.rest_api           = rest_master.Binance_REST(settings['public_key'], settings['private_key'])
         self.socket_api         = socket_master.Binance_SOCK()
 
+        ## Setup the logs/cache dir locations.
         self.logs_dir           = logs_dir
         self.cache_dir          = cache_dir
 
+        ## Setup run type, market type, and update bnb balance.
         self.run_type           = settings['run_type']
         self.market_type        = settings['market_type']
-
         self.update_bnb_balance = settings['update_bnb_balance']
 
+        ## Setup max candle/depth setting.
         self.max_candles        = settings['max_candles']
         self.max_depth          = settings['max_depth']
 
+        ## Get base quote pair (This prevents multiple different pairs from conflicting.)
         pair_one = settings['trading_markets'][0]
 
         self.quote_asset        = pair_one[:pair_one.index('-')]
         self.base_currency      = settings['trading_currency']
         self.candle_Interval    = settings['trader_interval']
 
+        ## Initilize base trader settings.
         self.trader_objects     = []
         self.trading_markets    = settings['trading_markets']
 
-        self.coreState          = None
+        ## Initilize core state
+        self.coreState          = 'READY'
 
 
     def start(self):
-        ''' '''
+        # Start the core object.
         logging.info('[BotCore] Starting the BotCore object.')
         self.coreState = 'SETUP'
 
@@ -260,8 +354,8 @@ class BotCore():
 
         # Load cached data
         cached_traders_data = None
-        if os.path.exists(self.cache_dir+CAHCE_FILES[0]):
-            with open(self.cache_dir+CAHCE_FILES[0], 'r') as f:
+        if os.path.exists(self.cache_dir+CAHCE_FILES):
+            with open(self.cache_dir+CAHCE_FILES, 'r') as f:
                 cached_traders_data = json.load(f)['data']
 
         ## Setup the trader objects and start them.
@@ -333,8 +427,6 @@ class BotCore():
                         if wallet['a'] == 'BNB':
                             if float(wallet['f']) < 0.01:
                                 bnb_order = self.rest_api.place_order(self.market_type, symbol='BNBBTC', side='BUY', type='MARKET', quantity=0.1)
-                                print(wallet)
-                                print(bnb_order)
             time.sleep(2)
 
 
@@ -354,15 +446,12 @@ class BotCore():
         ''' This section is responsible for re-testing connectiongs in the event of a disconnect. '''
         update_time = 0
         retryCounter = 1
-
         time.sleep(20)
 
         while self.coreState != 'STOP':
             time.sleep(1)
-
             if self.coreState != 'RUN':
                 continue
-
             if self.socket_api.last_data_recv_time != update_time:
                 update_time = self.socket_api.last_data_recv_time
             else:
@@ -382,27 +471,27 @@ class BotCore():
 
     def get_trader_data(self):
         ''' This can be called to return data for each of the active traders. '''
-        rData = []
-        for trader_ in self.trader_objects:
-            rData.append(trader_.get_trader_data())
+        rData = [ _trader.get_trader_data() for _trader in self.trader_objects ]
         return(rData)
 
 
-    def get_trader_indicators(self):
+    def get_trader_indicators(self, market):
         ''' This can be called to return the indicators that are used by the traders (Will be used to display web UI activity.) '''
-        indicator_data_set = {}
         for _trader in self.trader_objects:
-            indicator_data_set.update({_trader.print_pair:_trader.indicators})
-        return(indicator_data_set)
+            if _trader.print_pair == market:
+                indicator_data = _trader.indicators
+                indicator_data.update({'order':{'buy':[], 'sell':[]}})
+                indicator_data['order']['buy'] = [ [order[0],order[1]] for order in _trader.trade_recorder if order[4] == 'BUY']
+                indicator_data['order']['sell'] = [ [order[0],order[1]] for order in _trader.trade_recorder if order[4] == 'SELL']
+                return(indicator_data)
 
 
-    def get_trader_candles(self):
+    def get_trader_candles(self, market):
         ''' This can be called to return the candle data for the traders (Will be used to display web UI activity.) '''
-        candle_data_set = {}
         for _trader in self.trader_objects:
-            sock_symbol = str(_trader.base_asset)+str(_trader.quote_asset)
-            candle_data_set.update({_trader.print_pair:self.socket_api.get_live_candles(sock_symbol)})
-        return(candle_data_set)
+            if _trader.print_pair == market:
+                sock_symbol = str(_trader.base_asset)+str(_trader.quote_asset)
+                return(self.socket_api.get_live_candles(sock_symbol))
 
 
 def start(settings, logs_dir, cache_dir):

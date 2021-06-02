@@ -1,0 +1,28 @@
+{% macro overview_data_panel(market_symbols) %}
+    <section id="trader_Overview" class="Overview-panel">
+        <h3>Trader Overview</h3>
+        <p>
+            Total PL: <span class="overview-totalpl"></span> | Total Trades: <span class="overview-totaltrades"></span>
+        </p>
+        {% for market_symbol in market_symbols %}
+        <div id="overview_{{ market_symbol }}">
+            Symbol: {{ market_symbol }} | State: <span class="trader-state"></span> | Side: <span class="trader-orderside"></span> | Trades: <span class="trader-trades"></span> | Overall: <span class="trader-overall"></span></span> | Last Price: <span class="trader-lastprice"></span> | OP: <span class="trader-orderpoint"></span><br />
+        </div>
+        {% endfor %}
+    </section>
+{% endmacro %}
+
+
+{% macro market_data_panel(market_symbol) %}
+    <section id="trader_{{ market_symbol }}" class="trader-panel">
+        <h3>{{ market_symbol }}</h3>
+        <a href=# class="small-button green-button" onclick="start_trader(event, '{{ market_symbol }}');">Start</a>
+        <a href=# class="small-button amber-button" onclick="pause_trader(event, '{{ market_symbol }}');">Pause</a>
+        <p>
+            State: <span class="trader-state"></span> | Trades: <span class="trader-trades"></span> | Overall: <span class="trader-overall"></span> | Last Update: <span class="trader-lastupdate"></span> | Last Price: <span class="trader-lastprice"></span><br />
+            <span class="trader-markettype"></span> <span class="trader-orderside"></span> | Type: <span class="trader-ordertype"></span> | Status: <span class="trader-orderstatus"></span> | Buy Price: <span class="trader-buyprice"></span><span class="show-sellaction">| Sell Price: <span class="trader-sellprice"></span></span> | OP: <span class="trader-orderpoint"></span>
+        </p>
+        <div class="trader_charts">
+        </div>
+    </section>
+{% endmacro %}
