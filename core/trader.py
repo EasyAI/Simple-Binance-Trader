@@ -40,7 +40,7 @@ BASE_MARKET_LAYOUT = {
     'order_id':None,         # The ID that is tied to the placed order.
     'order_status':0,        # The type of the order that is placed
     'order_side':'BUY',      # The status of the current order.
-    'order_type':'WAIT',     # Used to show the type of order (SIGNAL/STOP-LOSS/WAIT)
+    'order_type':'WAIT',     # Used to show the type of order
     'order_description':0,   # The description of the order.
     'order_market_type':None,# The market type of the order placed.
     'market_status':None     # Last state the market trader is.    
@@ -243,7 +243,7 @@ class BaseTrader(object):
                         self.configuration['symbol'])
 
                     ## For managing the placement of orders/condition checking.
-                    if cp['can_order'] == True and self.state_data['runtime_state'] == 'RUN' and cp['market_status'] == 'TRADING':
+                    if cp['can_order'] and self.state_data['runtime_state'] == 'RUN' and cp['market_status'] == 'TRADING':
                         if cp['order_type'] == 'COMPLETE':
                             cp['order_type'] = 'WAIT'
 
@@ -411,69 +411,87 @@ class BaseTrader(object):
     def _trade_manager(self, market_type, cp, indicators, candles):
         ''' 
         Here both the sell and buy conditions are managed by the trader.
-        -> Manager Sell Conditions.
-            Manage the placed sell condition as well as monitor conditions for the sell side.
-        -> Manager Buy Conditions.
-            Manage the placed buy condition as well as monitor conditions for the buy side.
-        -> Place Market Order.
-            Place orders on the market with real and assume order placemanet with test.
+        -
         '''
-        updateOrder = False
 
-        # Set the consitions to look over.
+
+        # Check for entry/exit conditions.
+
+        ## If order status is locked then return.
+        if cp['order_status'] == 'LOCKED':
+            return
+
+        ## Select the correct conditions function dynamically.
         if cp['order_side'] == 'SELL':
             current_conditions = TC.long_exit_conditions if market_type == 'LONG' else TC.short_exit_conditions
-        else:
-            if self.state_data['runtime_state'] == 'FORCE_PREVENT_BUY' or cp['order_status'] == 'LOCKED':
+
+        elif cp['order_side'] == 'BUY':
+            ### If the bot is forced set to froce prevent buy return.
+            if self.state_data['runtime_state'] == 'FORCE_PREVENT_BUY':
                 return
+
             current_conditions = TC.long_entry_conditions if market_type == 'LONG' else TC.short_entry_conditions
 
+
+        # Check condition check results.
         logging.debug('[BaseTrader] Checking for {0} {1} condition. [{2}]'.format(cp['order_side'], market_type, self.print_pair))
         new_order = current_conditions(self.custom_conditional_data, cp, indicators,  self.market_prices, candles, self.print_pair)
-
-        # If no order is to be placed just return.
+                
+        ## If no new order is returned then just return.
         if not(new_order):
             return
 
+        ## Update order point.
+        if 'order_point' in new_order:
+            cp['order_point'] = new_order['order_point']
+
         order = None
-        if new_order['order_type'] != 'WAIT':
-            cp['order_description'] = new_order['description']
 
-            # Format the prices to be used.
-            if 'price' in new_order:
+        ## Check for a new possible order type update.
+        if 'order_type' in new_order:
+
+            ### If order type update is not WAIT then update the current order OR cancel the order.
+            if new_order['order_type'] != 'WAIT':
+                print(new_order)
+                cp['order_description'] = new_order['description']
+
+                #### Format the prices to be used.
                 if 'price' in new_order:
-                    new_order['price'] = '{0:.{1}f}'.format(float(new_order['price']), self.rules['TICK_SIZE'])
-                if 'stopPrice' in new_order:
-                    new_order['stopPrice'] = '{0:.{1}f}'.format(float(new_order['stopPrice']), self.rules['TICK_SIZE'])
-                if float(new_order['price']) != cp['price']:
-                    updateOrder = True
+                    if 'price' in new_order:
+                        new_order['price'] = '{0:.{1}f}'.format(float(new_order['price']), self.rules['TICK_SIZE'])
+                    if 'stopPrice' in new_order:
+                        new_order['stopPrice'] = '{0:.{1}f}'.format(float(new_order['stopPrice']), self.rules['TICK_SIZE'])
 
-            # If order is to be placed or updated then do so.
-            if cp['order_type'] != new_order['order_type'] or updateOrder:
-                order = new_order
+                    if float(new_order['price']) != cp['price']:
+                        order = new_order
+                else:
+                    #### If the order type has changed OR the placement price has been changed update the order with the new price/type.
+                    if cp['order_type'] != new_order['order_type']:
+                        order = new_order
 
-        else:
-            # Wait will be used to indicate order reset.
-            if 'order_point' in new_order:
-                cp['order_point'] = new_order['order_point']
+            else:
+                #### Cancel the order.
+                cp['order_status'] = None
+                cp['order_type'] = 'WAIT'
 
-            if cp['order_side'] == 'BUY':
-                cp['order_market_type'] = None
-            cp['order_status'] = None
-            cp['order_type'] = 'WAIT'
+                #### Only reset market type IF its buy or as margin allows for 2 market types.
+                if cp['order_side'] == 'BUY':
+                    cp['order_market_type'] = None
 
-        if cp['order_id'] != None and (new_order['order_type'] == 'WAIT' or order != None):
-            cancel_order_results = self._cancel_order(cp['order_id'], cp['order_type'])
-            cp['order_id'] = None
+                #### Cancel active order if one is placed.
+                if cp['order_id'] != None and new_order['order_type'] == 'WAIT':
+                    cancel_order_results = self._cancel_order(cp['order_id'], cp['order_type'])
+                    cp['order_id'] = None
 
-        ## Place Market Order.
+                return(cp)
+
+        # Place a new market order.
         if order:
             order_results = self._place_order(market_type, cp, order)
-            logging.debug('order: {0}\norder result:\n{1}'.format(order, order_results))
+            logging.info('order: {0}\norder result:\n{1}'.format(order, order_results))
 
-            # If errors are returned for the order then sort them.
+            # Error handle for binance related errors from order placement:
             if 'code' in order_results['data']:
-                ## used to catch error codes.
                 if order_results['data']['code'] == -2010:
                     self.state_data['runtime_state'] = 'PAUSE_INSUFBALANCE'
                 elif order_results['data']['code'] == -2011:
@@ -521,7 +539,7 @@ class BaseTrader(object):
             cp['order_type']    = new_order['order_type']
             cp['order_status']  = 'PLACED'
 
-            logging.info('update: {0}, type: {1}, status: {2}'.format(updateOrder, new_order['order_type'], cp['order_status']))
+            logging.info('type: {0}, status: {1}'.format(new_order['order_type'], cp['order_status']))
             return(cp)
 
 

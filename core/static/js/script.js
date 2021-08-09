@@ -100,6 +100,7 @@ function update_trader_results(data) {
             }
 
             if ((current_chart == update_targets[i]) && (update_chart == true) && current_chart != 'trader_Overview') {
+                console.log(currentTraders);
                 update_chart = false;
                 target_el = trader_panel.getElementsByClassName('trader_charts')[0];
                 build_chart(current['market'], target_el);
@@ -116,6 +117,7 @@ function update_trader_results(data) {
 
 
 function hide_section(e, section_id){
+
     var section_el = document.getElementsByTagName('section');
     for (i = 0; i < (section_el.length); i++){
         if (section_el[i].id == `trader_${section_id}`) {
