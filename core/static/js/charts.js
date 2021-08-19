@@ -191,8 +191,12 @@ function build_basic_indicator(chart_obj, ind_obj, chart_type, line_name=null, i
 
 function populate_chart(indicator_data) {
 
-    for (var indicator in indicator_data) {
-        var current_ind = indicator_data[indicator];
+    for (var raw_indicator in indicator_data) {
+
+        var patt = /[^\d]+/i;
+        var indicator = raw_indicator.match(patt)[0];
+
+        var current_ind = indicator_data[raw_indicator];
         var chart_type = indicator_chart_types_mapping[indicator];
         var home_chart = indicator_home_type_mapping[indicator];
         var line_name = null;
@@ -208,7 +212,7 @@ function populate_chart(indicator_data) {
                 }
             } else {
                 if (indicator_is_single_mapping.includes(indicator)) {
-                    line_name = indicator;
+                    line_name = raw_indicator;
                 }
                 var built_chart = build_basic_indicator(target_chart, current_ind, chart_type, line_name, ind_name);
             }

@@ -457,6 +457,10 @@ class BotCore():
             else:
                 if (update_time + (15*retryCounter)) < time.time():
                     retryCounter += 1
+
+                    if retryCounter % 5 == 0:
+                        self.socket_api.stop()
+                    
                     try:
                         print(self.rest_api.test_ping())
                     except Exception as e:
