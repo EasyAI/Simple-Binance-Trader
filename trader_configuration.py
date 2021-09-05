@@ -24,7 +24,6 @@ def technical_indicators(candles):
 '''
 --- Current Supported Order ---
     Below are the currently supported order types that can be placed which the trader
-
 -- MARKET --
     To place a MARKET order you must pass:
         'side'              : 'SELL', 
@@ -38,14 +37,12 @@ def technical_indicators(candles):
         'stopPrice'         : stopPrice,
         'description'       : 'Long exit stop-loss', 
         'order_type'        : 'STOP_LOSS_LIMIT'
-
 -- LIMIT --
     To place a LIMIT order you must pass:
         'side'              : 'SELL', 
         'price'             : price,
         'description'       : 'Long exit stop-loss', 
         'order_type'        : 'LIMIT'
-
 -- OCO LIMIT --
     To place a OCO LIMIT order you must pass:
         'side'              : 'SELL', 
@@ -54,7 +51,6 @@ def technical_indicators(candles):
         'stopLimitPrice'    : stopLimitPrice,
         'description'       : 'Long exit stop-loss', 
         'order_type'        : 'OCO_LIMIT'
-
 --- Key Descriptions--- 
     Section will give brief descript of what each order placement key is and how its used.
         side            = The side the order is to be placed either buy or sell.
@@ -63,7 +59,6 @@ def technical_indicators(candles):
         stopLimitPrice  = Used for OCO to to determine price placement for part 2 of the order.
         description     = A description for the order that can be used to identify multiple conditions.
         order_type      = The type of the order that is to be placed.
-
 --- Candle Structure ---
     Candles are structured in a multidimensional list as follows:
         [[time, open, high, low, close, volume], ...]
@@ -95,9 +90,6 @@ def long_exit_conditions(custom_conditional_data, trade_information, indicators,
                 'description':'LONG exit signal 1', 
                 'order_type':'MARKET'})
 
-    if trade_information['order_type'] == 'STOP_LOSS':
-        return
-
     stop_loss_price = float('{0:.{1}f}'.format((trade_information['buy_price']-(trade_information['buy_price']*0.004)), pRounding))
     stop_loss_status = basic_stoploss_setup(trade_information, stop_loss_price, stop_loss_price, 'LONG')
 
@@ -113,13 +105,15 @@ def long_entry_conditions(custom_conditional_data, trade_information, indicators
     order_point = 0
     signal_id = 0
     macd = indicators['macd']
+    ema200 = indicators['ema']['ema200']
 
-    if macd[0]['macd'] > macd[1]['macd']:
-        order_point += 1
-        if macd[1]['hist'] > macd[0]['hist']:
-            return({'side':'BUY',
-                'description':'LONG entry signal 1', 
-                'order_type':'MARKET'})
+    if (candles[0][4] > ema200[0]):
+        if macd[0]['macd'] > macd[1]['macd']:
+            order_point += 1
+            if macd[1]['hist'] > macd[0]['hist']:
+                return({'side':'BUY',
+                    'description':'LONG entry signal 1', 
+                    'order_type':'MARKET'})
 
     # Base return for waiting and updating order positions.
     if order_point == 0:
@@ -130,12 +124,47 @@ def long_entry_conditions(custom_conditional_data, trade_information, indicators
 
 def short_exit_conditions(custom_conditional_data, trade_information, indicators, prices, candles, symbol):
     ## Place Short exit (sell) conditions under this section.
-    pass
+    order_point = 0
+    signal_id = 0
+    macd = indicators['macd']
+
+    if macd[0]['macd'] > macd[1]['macd']:
+        order_point += 1
+        if macd[1]['hist'] > macd[0]['hist']:
+            return({'side':'SELL',
+                'description':'SHORT exit signal 1', 
+                'order_type':'MARKET'})
+
+    stop_loss_price = float('{0:.{1}f}'.format((trade_information['buy_price']+(trade_information['buy_price']*0.004)), pRounding))
+    stop_loss_status = basic_stoploss_setup(trade_information, stop_loss_price, stop_loss_price, 'SHORT')
+
+    # Base return for waiting and updating order positions.
+    if stop_loss_status:
+        return(stop_loss_status)
+    else:
+        return({'order_point':'S_ext_{0}_{1}'.format(signal_id, order_point)})
 
 
 def short_entry_conditions(custom_conditional_data, trade_information, indicators, prices, candles, symbol):
     ## Place Short entry (buy) conditions under this section.
-    pass
+    order_point = 0
+    signal_id = 0
+    macd = indicators['macd']
+    ema200 = indicators['ema']['ema200']
+
+    if (candles[0][4] < ema200[0]):
+        if macd[0]['macd'] < macd[1]['macd'] and macd[0]['hist'] > macd[0]['macd']:
+            order_point += 1
+            if macd[1]['hist'] < macd[0]['hist']:
+                return({'side':'BUY',
+                    'description':'SHORT entry signal 1', 
+                    'order_type':'MARKET'})
+
+    # Base return for waiting and updating order positions.
+    if order_point == 0:
+        return({'order_type':'WAIT'})
+    else:
+        return({'order_type':'WAIT', 'order_point':'S_ent_{0}_{1}'.format(signal_id, order_point)})
 
 
 def basic_stoploss_setup(trade_information, price, stop_price, position_type):

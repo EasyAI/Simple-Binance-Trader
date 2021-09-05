@@ -9,6 +9,7 @@ import threading
 import trader_configuration as TC
 
 MULTI_DEPTH_INDICATORS = ['ema', 'sma', 'rma']
+TRADER_SLEEP = 1
 
 # Base commission fee with binance.
 COMMISION_FEE = 0.00075
@@ -255,7 +256,7 @@ class BaseTrader(object):
 
                     self.market_activity = cp
 
-                    time.sleep(.1)
+                    time.sleep(TRADER_SLEEP)
 
             current_localtime = time.localtime()
             self.state_data['last_update_time'] = '{0}:{1}:{2}'.format(current_localtime[3], current_localtime[4], current_localtime[5])

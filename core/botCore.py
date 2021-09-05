@@ -11,8 +11,8 @@ from decimal import Decimal
 from flask_socketio import SocketIO
 from flask import Flask, render_template, url_for, request
 
-from binance_api import rest_master
-from binance_api import socket_master
+from binance_api import api_master_rest_caller
+from binance_api import api_master_socket_caller
 
 from . import trader
 
@@ -227,8 +227,8 @@ class BotCore():
         logging.info('[BotCore] Initilizing the BotCore object.')
 
         ## Setup binance REST and socket API.
-        self.rest_api           = rest_master.Binance_REST(settings['public_key'], settings['private_key'])
-        self.socket_api         = socket_master.Binance_SOCK()
+        self.rest_api           = api_master_rest_caller.Binance_REST(settings['public_key'], settings['private_key'])
+        self.socket_api         = api_master_socket_caller.Binance_SOCK()
 
         ## Setup the logs/cache dir locations.
         self.logs_dir           = logs_dir
@@ -457,9 +457,6 @@ class BotCore():
             else:
                 if (update_time + (15*retryCounter)) < time.time():
                     retryCounter += 1
-
-                    if retryCounter % 5 == 0:
-                        self.socket_api.stop()
                     
                     try:
                         print(self.rest_api.test_ping())

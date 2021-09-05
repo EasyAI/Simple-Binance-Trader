@@ -1,7 +1,7 @@
 // Indicator meta details
-const indicator_chart_types_mapping = {'patterns_data_lines':'line', 'patterns_data_points':'scatter', 'tops_bottoms':'scatter', 'data_lines':'line', 'ichi':'line', 'boll':'line', 'adx':'line', 'stock':'line', 'order':'scatter', 'ema':'line', 'sma':'line', 'rma':'line', 'rsi':'line', 'mfi':'line', 'cci':'line', 'zerolagmacd':'macd', 'macd':'macd'}
-const indicator_home_type_mapping = {'patterns_data_lines':'MAIN', 'patterns_data_points':'MAIN', 'tops_bottoms':'MAIN', 'data_lines':'MAIN', 'ichi':'MAIN', 'boll':'MAIN', 'adx':'OWN', 'stock':'OWN', 'order':'MAIN', 'ema':'MAIN', 'sma':'MAIN', 'rma':'MAIN', 'rsi':'OWN', 'mfi':'OWN', 'cci':'OWN', 'zerolagmacd':'OWN', 'macd':'OWN'}
-const indicator_is_single_mapping = ['patterns_data_lines', 'patterns_data_points', 'tops_bottoms', 'data_lines', 'order', 'ema', 'sma', 'rma', 'rsi', 'mfi', 'cci']
+const indicator_chart_types_mapping = {'patterns_data_lines':'line', 'patterns_data_points':'scatter', 'tops_bottoms':'scatter', 'data_lines':'line', 'cps':'line', 'ichi':'line', 'boll':'line', 'adx':'line', 'stock':'line', 'order':'scatter', 'ema':'line', 'sma':'line', 'rma':'line', 'rsi':'line', 'mfi':'line', 'cci':'line', 'zerolagmacd':'macd', 'macd':'macd'}
+const indicator_home_type_mapping = {'patterns_data_lines':'MAIN', 'patterns_data_points':'MAIN', 'tops_bottoms':'MAIN', 'data_lines':'MAIN', 'ichi':'MAIN', 'cps':'MAIN', 'boll':'MAIN', 'adx':'OWN', 'stock':'OWN', 'order':'MAIN', 'ema':'MAIN', 'sma':'MAIN', 'rma':'MAIN', 'rsi':'OWN', 'mfi':'OWN', 'cci':'OWN', 'zerolagmacd':'OWN', 'macd':'OWN'}
+const indicator_is_single_mapping = ['patterns_data_lines', 'patterns_data_points', 'tops_bottoms', 'data_lines', 'order', 'ema', 'sma', 'rma', 'rsi', 'mfi', 'cci', 'cps']
 const double_depth_indicators = ['ema', 'sma', 'order', 'patterns_data_points', 'patterns_data_lines'];
 
 // Base Apex chart configuration.
