@@ -20,10 +20,9 @@ This is a simple binance trader that uses the REST api and sockets to allow auto
 ### Repository Contains:
 - run.py : This is used to start/setup the bot.
 - trader_configuration.py : Here is where you write your conditions using python logic.
-- settings.txt : This contains indicators that can be used by the bot.
+- patterns.py : Can be used to trade based on specific patterns.
 - Core
   - botCore.py : Is used to manage the socket and trader as well as pull data to be displayed.
-  - handler.py : handles file reading/saving for cached data.
   - trader.py : The main trader inchage or updating and watching orders.
   - static : Folder for static files for the website (js/css).
   - templates : Folder for HTML page templates.
@@ -31,10 +30,11 @@ This is a simple binance trader that uses the REST api and sockets to allow auto
 ### Setting File:
 - PUBLIC_KEY -  Your public binanace api key
 - PRIVATE_KEY - Your private binanace api key
-- IS_TEST - If the trader should only simulate orders or actually place them (if running real api keys are required)
+- IS_TEST - Allow trader to be run in test mode (True/False)
 - MARKET_TYPE - Market type to be traded (SPOT/MARGIN)
-- TRADER_INTERVAL - The interval that is being traded at 3m, 5m, 1h, 1d, etc.
-- TRADING_CURRENCY - The amount of curreny each trader can use for its trades (in BTC)
+- UPDATE_BNB_BALANCE - Automatically update the BNB balance when low (for trading fees, only applicable to real trading)
+- TRADER_INTERVAL - Interval used for the trader (1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d).
+- TRADING_CURRENCY - The currency max the trader will use (in the quote key) also note this scales up with the number of markets i.e. 2 pairs each market will have 0.0015 as their trading currency pair.
 - TRADING_MARKETS - The markets that are being traded and seperate with ',' (BTC-ETH,BTC-NEO)
 - HOST_IP - The host IP for the web UI (if left blank default is 127.0.0.1)
 - HOST_PORT - The host port for the web UI (if left blank default is 5000)
